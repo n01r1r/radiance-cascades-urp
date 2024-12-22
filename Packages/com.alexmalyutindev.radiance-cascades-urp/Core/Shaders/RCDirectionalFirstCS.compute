@@ -1,0 +1,38 @@
+#pragma kernel RenderCascade
+
+#include "Common.hlsl"
+
+float _ProbeSize;
+float _CascadeLevel;
+RWTexture2D<float4> _OutCascade;
+
+// Probe Layout
+// ._____________________.
+// |          |          |
+// |    \     |     /    |
+// |__________|__________|
+// |          |          |
+// |    /     |     \    |
+// !__________|__________|
+
+[numthreads(8,8,1)]
+void RenderCascade(uint3 id : SV_DispatchThreadID)
+{
+    uint2 coords = id.xy;
+    if (any(coords > uint2(_CascadeBufferSize.xy)))
+    {
+        return;
+    }
+
+    float2 directionId = floor(coords * _CascadeBufferSize.zw * 2.0f);
+    float angle = (directionId.x + directionId.y * 2.0f + 0.5f) * HALF_PI;
+    float2 direction;
+    sincos(angle, direction.y, direction.x);
+
+    direction *= _ColorTexture_TexelSize.xy;
+
+    float2 uv = frac(coords * _CascadeBufferSize.zw * 2.0f);
+    float4 color = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, uv + direction, 0);
+
+    _OutCascade[coords] = color;
+}

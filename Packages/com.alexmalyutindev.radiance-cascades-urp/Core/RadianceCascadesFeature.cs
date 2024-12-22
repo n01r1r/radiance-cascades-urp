@@ -12,7 +12,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
     [SerializeField]
     private RenderType _renderType;
 
-    private RadianceCascadesPass _radianceCascadesPass;
+    private RC2dPass _rc2dPass;
     private RadianceCascades3dPass _radianceCascadesPass3d;
     private VoxelizationPass _voxelizationPass;
     private HiZDepthPass _hiZDepthPass;
@@ -23,7 +23,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
     {
         _radianceCascadesRenderingData = new RadianceCascadesRenderingData();
 
-        _radianceCascadesPass = new RadianceCascadesPass(Resources, showDebugView)
+        _rc2dPass = new RC2dPass(Resources, showDebugView)
         {
             renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
         };
@@ -54,7 +54,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
 
         if (_renderType == RenderType._2D)
         {
-            renderer.EnqueuePass(_radianceCascadesPass);
+            renderer.EnqueuePass(_rc2dPass);
         }
         else if (_renderType == RenderType._3D)
         {
@@ -65,7 +65,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
 
     protected override void Dispose(bool disposing)
     {
-        _radianceCascadesPass?.Dispose();
+        _rc2dPass?.Dispose();
         _radianceCascadesPass3d?.Dispose();
         _voxelizationPass?.Dispose();
         _hiZDepthPass?.Dispose();

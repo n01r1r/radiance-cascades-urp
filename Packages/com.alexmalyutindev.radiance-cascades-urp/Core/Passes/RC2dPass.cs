@@ -1,56 +1,66 @@
 using System;
 using AlexMalyutinDev.RadianceCascades;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
+public class RC2dPass : ScriptableRenderPass, IDisposable
 {
     private const int CascadesCount = 5;
-    private static readonly string[] Cascade3dNames = GenNames("_Cascade", CascadesCount);
+    private static readonly string[] CascadeNames = GenNames("_Cascade", CascadesCount);
+    private static Vector2Int[] Resolutions =
+    {
+        new(32 * 16, 32 * 9), // 256x144 probes0
+        new(32 * 10, 32 * 6), // 160x96 probes0
+        new(32 * 7, 32 * 4), // 112x64 probes0
+        new(32 * 4, 32 * 3), // 64x48 probes0
+        new(32 * 3, 32 * 2), // 48x32 probes0
+    };
 
     private readonly ProfilingSampler _profilingSampler;
-
-    private readonly RadianceCascadesRenderingData _radianceCascadesRenderingData;
-    private readonly Material _blitMaterial;
-    private readonly RadianceCascade3dCS _radianceCascade;
+    private readonly Material _blit;
+    private readonly ComputeShader _radianceCascadesCs;
+    private readonly RadianceCascadeCS _radianceCascadeCs;
+    private readonly bool _showDebugPreview;
 
     private readonly RTHandle[] _cascades = new RTHandle[CascadesCount];
 
-    public RadianceCascades3dPass(
+
+    public RC2dPass(
         RadianceCascadeResources resources,
-        RadianceCascadesRenderingData radianceCascadesRenderingData
+        bool showDebugView
     )
     {
-        _profilingSampler = new ProfilingSampler(nameof(RadianceCascadesPass));
-        _radianceCascade = new RadianceCascade3dCS(resources.RadianceCascades3d);
-        _radianceCascadesRenderingData = radianceCascadesRenderingData;
-        _blitMaterial = resources.BlitMaterial;
+        _profilingSampler = new ProfilingSampler(nameof(RC2dPass));
+        _radianceCascadeCs = new RadianceCascadeCS(resources.RadianceCascades);
+        _showDebugPreview = showDebugView;
+        _blit = resources.BlitMaterial;
+
+        // BUG: Configuring with Depth and Color buffer dependency will cause to additional
+        // resolve of this buffers before RadianceCascadesPass
+        // ConfigureInput(ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Color);
     }
 
     public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
     {
-        const int scale = 4;
-        var decs = new RenderTextureDescriptor(
-            (2 << CascadesCount) * 2 * scale,
-            (1 << CascadesCount) * 3 * scale
+        // TODO: Resolution settings?
+        var desc = new RenderTextureDescriptor(
+            Resolutions[0].x,
+            Resolutions[0].y
         )
         {
             colorFormat = RenderTextureFormat.ARGBHalf,
             enableRandomWrite = true,
-            mipCount = 0,
-            depthBufferBits = 0,
-            depthStencilFormat = GraphicsFormat.None,
         };
+
         for (int i = 0; i < _cascades.Length; i++)
         {
             RenderingUtils.ReAllocateIfNeeded(
                 ref _cascades[i],
-                decs,
-                name: Cascade3dNames[i],
+                desc,
                 filterMode: FilterMode.Point,
-                wrapMode: TextureWrapMode.Clamp
+                wrapMode: TextureWrapMode.Clamp,
+                name: CascadeNames[i]
             );
         }
     }
@@ -70,10 +80,9 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
 
         using (new ProfilingScope(cmd, _profilingSampler))
         {
+            RenderCascades(renderingData, cmd, colorTexture, depthTexture);
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
-
-            Render(cmd, ref renderingData, colorTexture, depthTexture);
         }
 
         context.ExecuteCommandBuffer(cmd);
@@ -82,9 +91,9 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
         CommandBufferPool.Release(cmd);
     }
 
-    private void Render(
+    private void RenderCascades(
+        RenderingData renderingData,
         CommandBuffer cmd,
-        ref RenderingData renderingData,
         RTHandle colorTexture,
         RTHandle depthTexture
     )
@@ -94,10 +103,9 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
         {
             for (int level = 0; level < _cascades.Length; level++)
             {
-                _radianceCascade.RenderCascade(
+                // TODO: Use Hi-Z Depth
+                _radianceCascadeCs.RenderCascade(
                     cmd,
-                    ref renderingData,
-                    _radianceCascadesRenderingData,
                     colorTexture,
                     depthTexture,
                     2 << level,
@@ -108,30 +116,40 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
         }
         cmd.EndSample(sampleKey);
 
-        PreviewCascades(cmd, _cascades);
+        if (_showDebugPreview)
+        {
+            PreviewCascades(cmd, _cascades);
+        }
 
         sampleKey = "MergeCascades";
         cmd.BeginSample(sampleKey);
         {
             for (int level = _cascades.Length - 1; level > 0; level--)
             {
-                _radianceCascade.MergeCascades(
+                var lowerLevel = level - 1;
+                _radianceCascadeCs.MergeCascades(
                     cmd,
-                    _cascades[level - 1],
+                    _cascades[lowerLevel],
                     _cascades[level],
-                    level - 1
+                    lowerLevel
                 );
             }
         }
         cmd.EndSample(sampleKey);
 
+        if (_showDebugPreview)
+        {
+            PreviewCascades(cmd, _cascades, 1.0f);
+        }
 
         sampleKey = "Combine";
         cmd.BeginSample(sampleKey);
-        Blitter.BlitTexture(cmd, _cascades[0], new Vector4(1f / 2f, 1f / 3f, 0, 0), _blitMaterial, 1);
+        {
+            cmd.SetRenderTarget(colorTexture, depthTexture);
+            // TODO: Do blit into intermediate buffer with bilinear filter, then blit onto the screen
+            BlitUtils.BlitTexture(cmd, _cascades[0], _blit, 0);
+        }
         cmd.EndSample(sampleKey);
-
-        PreviewCascades(cmd, _cascades, 1.0f);
     }
 
     private void PreviewCascades(CommandBuffer cmd, RTHandle[] rtHandles, float offset = 0.0f)
