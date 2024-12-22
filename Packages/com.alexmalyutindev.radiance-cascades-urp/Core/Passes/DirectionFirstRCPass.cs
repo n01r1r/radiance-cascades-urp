@@ -5,19 +5,21 @@ using UnityEngine.Rendering.Universal;
 
 namespace AlexMalyutinDev.RadianceCascades
 {
-    public class RCDirectionalFirstPass : ScriptableRenderPass, IDisposable
+    public class DirectionFirstRCPass : ScriptableRenderPass, IDisposable
     {
-        private RCDirectionalFirstCS _compute;
+        private readonly RCDirectionalFirstCS _compute;
         private RTHandle _cascade0;
 
-        public RCDirectionalFirstPass(RadianceCascadeResources resources)
+        public DirectionFirstRCPass(RadianceCascadeResources resources)
         {
+            profilingSampler = new ProfilingSampler("RadianceCascades.DirectionFirst");
             _compute = new RCDirectionalFirstCS(resources.RadianceCascadesDirectionalFirstCS);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            var desc = new RenderTextureDescriptor(512, 256)
+            // 512 => 512 / 8 = 64 probes in row
+            var desc = new RenderTextureDescriptor(512 * 4, 256 * 4)
             {
                 enableRandomWrite = true,
             };

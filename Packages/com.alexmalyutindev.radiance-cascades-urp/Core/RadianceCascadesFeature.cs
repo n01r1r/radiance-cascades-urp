@@ -14,7 +14,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
 
     private RC2dPass _rc2dPass;
     private RadianceCascades3dPass _radianceCascadesPass3d;
-    private RCDirectionalFirstPass _rcDirectionalFirstPass;
+    private DirectionFirstRCPass _directionFirstRcPass;
     private VoxelizationPass _voxelizationPass;
     private HiZDepthPass _hiZDepthPass;
 
@@ -43,7 +43,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
             renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
         };
 
-        _rcDirectionalFirstPass = new RCDirectionalFirstPass(Resources)
+        _directionFirstRcPass = new DirectionFirstRCPass(Resources)
         {
             renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights,
         };
@@ -69,7 +69,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
         }
         else if (_renderType == RenderType._2DDirectionalFirst)
         {
-            renderer.EnqueuePass(_rcDirectionalFirstPass);
+            renderer.EnqueuePass(_directionFirstRcPass);
         }
     }
 

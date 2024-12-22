@@ -41,8 +41,8 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.DispatchCompute(
                 _compute,
                 _renderKernel,
-                colorRT.width / 8,
-                colorRT.height / 8,
+                targetRT.width / 8,
+                targetRT.height / 8,
                 1
             );
         }

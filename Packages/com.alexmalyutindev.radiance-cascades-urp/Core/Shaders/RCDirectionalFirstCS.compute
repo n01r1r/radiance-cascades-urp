@@ -34,32 +34,47 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     if (cascadeLevel > 5) return;
 
 
-    float projRays = 8.0f * pow(2.0f, cascadeLevel);
-    const float depthRays = 4.0f;
+    float cascadeFactor = pow(2.0f, cascadeLevel);
+    float projRays = 8.0f * cascadeFactor;
+    const float depthRays = 4.0f * cascadeFactor * 2.0f;
 
     // NOTE: 8 in projection x4 rays in depth in Cascade0
-    float deltaAngle = TWO_PI / 8.0f * pow(0.5f, cascadeLevel);
-    float angleX = (floor(coords.x * _CascadeBufferSize.z * projRays) + 0.5f) * deltaAngle;
+    float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.125f; // 1/8
+    float2 angleId = floor(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
+    float angleX = (angleId.x + 0.5f) * deltaAngle;
+
+    
+    if ((angleId.y % 4.0f) < 2.5f)
+    {
+        _OutCascade[coords] = float4(0, 0.5f, 0.0f, 1.0f);
+        return;
+    }
+
     // TODO: Depth rays angle!
-    float angleD = floor(coords.y * _CascadeBufferSize.w * depthRays) * HALF_PI * 0.25f;
+    // TODO: I can spawn less threads, cus depth rays can be done in simultaneously (one pixel in depth buffer)
+    // and then i should write then into four pixels in cascade. Potentially, it should reduce time by 4.
+    float angleD = (angleId.y - 1.5f) * HALF_PI * 0.25f;
 
     float2 direction;
     sincos(angleX, direction.y, direction.x);
-
     direction *= _ColorTexture_TexelSize.xy;
 
-    float2 uv = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays * pow(2.0f, cascadeLevel + 1)));
-    float depth0 = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_LinearClamp, uv, 0);
+    float2 uv = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
+    float depth0 = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, uv, 0) + 0.00001f;
+    float depth0Thick = depth0 + 0.2f;
 
     float4 color = float4(0, 0, 0, 1);
     int2 range = CalculateRange(cascadeLevel);
     UNITY_LOOP
     for (int i = range.x; i <= range.y; i++)
     {
-        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_LinearClamp, uv + direction * i, 0);
+        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, uv + direction * i, 0);
 
         // TODO: Compare depth for 4 depth rays.
-        if (depth0 < depth && depth - depth0 < 0.1f)
+        // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
+        // I need to compensate perspective distortion. Rays shot in camera direction will be smaller
+        // than ray out of camera.
+        if (depth0 < depth && depth < depth0Thick)
         {
             color = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, uv + direction * i, 0);
             color.a = 0.0f;
@@ -68,7 +83,6 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     }
 
     _OutCascade[coords] = color;
-    // _OutCascade[coords] = float4(cascadeLevel.xxx / 5.0f, 1.0f);
 }
 
 [numthreads(8,8,1)]
