@@ -104,6 +104,8 @@ namespace AlexMalyutinDev.RadianceCascades.HiZDepth
 
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
+            
+            CommandBufferPool.Release(cmd);
         }
 
         public void Dispose()

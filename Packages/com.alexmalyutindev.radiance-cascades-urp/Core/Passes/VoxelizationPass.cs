@@ -57,6 +57,7 @@ namespace AlexMalyutinDev.RadianceCascades
             }
 
             context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
             CommandBufferPool.Release(cmd);
         }
 

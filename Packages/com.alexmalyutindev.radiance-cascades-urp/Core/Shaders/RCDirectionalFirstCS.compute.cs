@@ -25,6 +25,7 @@ namespace AlexMalyutinDev.RadianceCascades
             );
             cmd.SetComputeVectorParam(_compute, ShaderIds.ColorTextureTexelSize, colorTexelSize);
             cmd.SetComputeTextureParam(_compute, _renderKernel, ShaderIds.ColorTexture, color);
+            cmd.SetComputeTextureParam(_compute, _renderKernel, ShaderIds.DepthTexture, depth);
 
             var targetRT = target.rt;
             var cascadeBufferSize = new Vector4(
@@ -34,6 +35,8 @@ namespace AlexMalyutinDev.RadianceCascades
                 1.0f / targetRT.height
             );
             cmd.SetComputeVectorParam(_compute, ShaderIds.CascadeBufferSize, cascadeBufferSize);
+
+            cmd.SetComputeTextureParam(_compute, _renderKernel, ShaderIds.OutCascade, target);
 
             cmd.DispatchCompute(
                 _compute,

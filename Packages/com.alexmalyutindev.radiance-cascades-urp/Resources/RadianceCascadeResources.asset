@@ -15,6 +15,8 @@ MonoBehaviour:
   BlitMaterial: {fileID: 2100000, guid: 206f0ae81b80148c7ab95b6f50db4cba, type: 2}
   RadianceCascades: {fileID: 7200000, guid: 0ebfba9c25c940319f9ea30f66cd0f3b, type: 3}
   RadianceCascades3d: {fileID: 7200000, guid: 54a62da9cffb40d991ab9aa90c091509, type: 3}
+  RadianceCascadesDirectionalFirstCS: {fileID: 7200000, guid: 032a6bed2c3d406aac1bd135f3d734d7,
+    type: 3}
   Voxelizator: {fileID: 4800000, guid: f81d2afa1f3c4f1a811764cc8be4c7f3, type: 3}
   VoxelizatorCS: {fileID: 7200000, guid: d8e7f3312278467d82cd5d52eec2da3e, type: 3}
   HiZDepthMaterial: {fileID: 2100000, guid: f9ad96d503fd346ea9d90be74860e99f, type: 2}

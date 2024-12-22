@@ -1,4 +1,5 @@
 #pragma kernel RenderCascade
+#pragma kernel MergeCascade
 
 #include "Common.hlsl"
 
@@ -6,14 +7,18 @@ float _ProbeSize;
 float _CascadeLevel;
 RWTexture2D<float4> _OutCascade;
 
-// Probe Layout
-// ._____________________.
-// |          |          |
-// |    \     |     /    |
-// |__________|__________|
-// |          |          |
-// |    /     |     \    |
-// !__________|__________|
+// Cascade Layout
+// Rows - depth angled rays
+// Columns - projection angled rays
+// ._______________________________.
+// |   ⬈   |   ⬉   |   ⬋   |   ⬊   |
+// |_______|_______|_______|_______|
+// |   ⬈   |   ⬉   |   ⬋   |   ⬊   |
+// |_______|_______|_______|_______|
+// |   ⬈   |   ⬉   |   ⬋   |   ⬊   |
+// |_______|_______|_______|_______|
+// |   ⬈   |   ⬉   |   ⬋   |   ⬊   |
+// |_______|_______|_______|_______|
 
 [numthreads(8,8,1)]
 void RenderCascade(uint3 id : SV_DispatchThreadID)
@@ -24,15 +29,52 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    float2 directionId = floor(coords * _CascadeBufferSize.zw * 2.0f);
-    float angle = (directionId.x + directionId.y * 2.0f + 0.5f) * HALF_PI;
+    float cascadeLevel = coords.y * _CascadeBufferSize.w;
+    cascadeLevel = floor(-log2(cascadeLevel));
+    if (cascadeLevel > 5) return;
+
+
+    float projRays = 8.0f * pow(2.0f, cascadeLevel);
+    const float depthRays = 4.0f;
+
+    // NOTE: 8 in projection x4 rays in depth in Cascade0
+    float deltaAngle = TWO_PI / 8.0f * pow(0.5f, cascadeLevel);
+    float angleX = (floor(coords.x * _CascadeBufferSize.z * projRays) + 0.5f) * deltaAngle;
+    // TODO: Depth rays angle!
+    float angleD = floor(coords.y * _CascadeBufferSize.w * depthRays) * HALF_PI * 0.25f;
+
     float2 direction;
-    sincos(angle, direction.y, direction.x);
+    sincos(angleX, direction.y, direction.x);
 
     direction *= _ColorTexture_TexelSize.xy;
 
-    float2 uv = frac(coords * _CascadeBufferSize.zw * 2.0f);
-    float4 color = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, uv + direction, 0);
+    float2 uv = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays * pow(2.0f, cascadeLevel + 1)));
+    float depth0 = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_LinearClamp, uv, 0);
+
+    float4 color = float4(0, 0, 0, 1);
+    int2 range = CalculateRange(cascadeLevel);
+    UNITY_LOOP
+    for (int i = range.x; i <= range.y; i++)
+    {
+        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_LinearClamp, uv + direction * i, 0);
+
+        // TODO: Compare depth for 4 depth rays.
+        if (depth0 < depth && depth - depth0 < 0.1f)
+        {
+            color = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, uv + direction * i, 0);
+            color.a = 0.0f;
+            break;
+        }
+    }
 
     _OutCascade[coords] = color;
+    // _OutCascade[coords] = float4(cascadeLevel.xxx / 5.0f, 1.0f);
 }
+
+[numthreads(8,8,1)]
+void MergeCascade(uint3 id : SV_DispatchThreadID)
+{
+    // TODO: MergeCascade! 
+}
+
+
