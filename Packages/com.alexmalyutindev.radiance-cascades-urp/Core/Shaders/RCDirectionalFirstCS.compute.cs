@@ -18,6 +18,8 @@ namespace AlexMalyutinDev.RadianceCascades
 
         public void Render(CommandBuffer cmd, RTHandle color, RTHandle depth, ref RTHandle target)
         {
+            cmd.BeginSample("Render");
+
             cmd.SetRenderTarget(target);
             cmd.ClearRenderTarget(false, true, Color.red);
 
@@ -50,10 +52,14 @@ namespace AlexMalyutinDev.RadianceCascades
                 targetRT.height / 8, // TODO: Spawn 4 times less threads for depth rays.
                 1
             );
+            
+            cmd.EndSample("Render");
         }
 
-        public void Merge(CommandBuffer cmd, int upperCascadeLevel, ref RTHandle target)
+        public void Merge(CommandBuffer cmd, ref RTHandle target)
         {
+            cmd.BeginSample("Merge");
+
             var targetRT = target.rt;
             var cascadeBufferSize = new Vector4(
                 targetRT.width,
@@ -62,16 +68,23 @@ namespace AlexMalyutinDev.RadianceCascades
                 1.0f / targetRT.height
             );
             cmd.SetComputeVectorParam(_compute, ShaderIds.CascadeBufferSize, cascadeBufferSize);
-            cmd.SetComputeTextureParam(_compute, _mergKernel, ShaderIds.OutCascade, target);
+            cmd.SetComputeTextureParam(_compute, _mergKernel, ShaderIds.LowerCascade, target);
+            // NOTE: Bind same buffer to sample from it, cus LowerCascade in RWTexture.
+            cmd.SetComputeTextureParam(_compute, _mergKernel, ShaderIds.UpperCascade, target);
 
-            cmd.SetComputeIntParam(_compute, ShaderIds.CascadeLevel, upperCascadeLevel);
-            cmd.DispatchCompute(
-                _compute,
-                _mergKernel,
-                targetRT.width / 8,
-                targetRT.height / (8 * 1 << upperCascadeLevel),
-                1
-            );
+            for (int upperCascadeLevel = 4; upperCascadeLevel > 0; upperCascadeLevel--)
+            {
+                cmd.SetComputeIntParam(_compute, ShaderIds.CascadeLevel, upperCascadeLevel);
+                cmd.DispatchCompute(
+                    _compute,
+                    _mergKernel,
+                    targetRT.width / 8,
+                    targetRT.height / (8 * 1 << upperCascadeLevel),
+                    1
+                );
+            }
+
+            cmd.EndSample("Merge");
         }
     }
 }

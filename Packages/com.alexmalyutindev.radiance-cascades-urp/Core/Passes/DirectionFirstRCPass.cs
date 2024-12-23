@@ -21,6 +21,7 @@ namespace AlexMalyutinDev.RadianceCascades
             // 512 => 512 / 8 = 64 probes in row
             var desc = new RenderTextureDescriptor(512 * 2, 256 * 2)
             {
+                colorFormat = RenderTextureFormat.ARGBFloat,
                 sRGB = false,
                 enableRandomWrite = true,
             };
@@ -38,12 +39,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     ref _cascade0
                 );
 
-                cmd.BeginSample("Merge");
-                _compute.Merge(cmd, 4, ref _cascade0);
-                _compute.Merge(cmd, 3, ref _cascade0);
-                _compute.Merge(cmd, 2, ref _cascade0);
-                _compute.Merge(cmd, 1, ref _cascade0);
-                cmd.EndSample("Merge");
+                _compute.Merge(cmd, ref _cascade0);
 
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
