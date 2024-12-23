@@ -19,7 +19,7 @@ namespace AlexMalyutinDev.RadianceCascades
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             // 512 => 512 / 8 = 64 probes in row
-            var desc = new RenderTextureDescriptor(512 * 2, 256 * 2)
+            var desc = new RenderTextureDescriptor(512 * 4, 256 * 4)
             {
                 colorFormat = RenderTextureFormat.ARGBFloat,
                 sRGB = false,
