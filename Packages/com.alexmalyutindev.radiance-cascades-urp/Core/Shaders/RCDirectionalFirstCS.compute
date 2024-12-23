@@ -4,7 +4,6 @@
 #include "Common.hlsl"
 
 float _ProbeSize;
-float _CascadeLevel;
 RWTexture2D<float4> _OutCascade;
 
 // Cascade Layout
@@ -33,7 +32,6 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     cascadeLevel = floor(-log2(cascadeLevel));
     if (cascadeLevel > 5) return;
 
-
     float cascadeFactor = pow(2.0f, cascadeLevel);
     float projRays = 8.0f * cascadeFactor;
     const float depthRays = 4.0f * cascadeFactor * 2.0f;
@@ -43,11 +41,12 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float2 angleId = floor(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
     float angleX = (angleId.x + 0.5f) * deltaAngle;
 
-    
-    if ((angleId.y % 4.0f) < 2.5f)
+
+    // TODO: Remove separate thread to depth rays, cast 4 rays in one thread.
+    if (angleId.y % 4.0f < 2.5f)
     {
-        _OutCascade[coords] = float4(0, 0.5f, 0.0f, 1.0f);
-        return;
+        // _OutCascade[coords] = float4(0, 0.5f, 0.0f, 1.0f);
+        // return;
     }
 
     // TODO: Depth rays angle!
@@ -82,13 +81,58 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         }
     }
 
+    // color += float4(0, cascadeLevel * 0.1f, id.x * _CascadeBufferSize.z, 0);
     _OutCascade[coords] = color;
+}
+
+
+// UpperCascadeLevel
+float _CascadeLevel;
+
+float4 LoadUpperCascade(int2 coords)
+{
+    float4 radiance = 0.0f;
+    radiance += _OutCascade[coords];
+    radiance += _OutCascade[coords + int2(1, 0)];
+    radiance += _OutCascade[coords + int2(0, 1)];
+    radiance += _OutCascade[coords + int2(1, 1)];
+    // TODO: Bilinear interpolate 2x2 probes
+    return radiance * 0.25f;
 }
 
 [numthreads(8,8,1)]
 void MergeCascade(uint3 id : SV_DispatchThreadID)
 {
-    // TODO: MergeCascade! 
+    float2 uv = id.xy * _CascadeBufferSize.zw;
+
+    float lowerCascadeTop = pow(2, -_CascadeLevel);
+    float upperCascadeTop = pow(2, -(_CascadeLevel + 1));
+
+    // TODO: Get local coords for lower cascade.
+    int2 lowerCoords = id.xy + int2(0, lowerCascadeTop * _CascadeBufferSize.y);
+
+    // TODO: Get local coords for upper cascade.
+    const float anglesCount = 8 * pow(2, _CascadeLevel - 1);
+    float probesCountX = floor(_CascadeBufferSize.x / anglesCount * 0.5f);
+    int2 upperCoordsLeft = int2(
+        id.x / 2 + probesCountX * floor(uv.x * anglesCount),
+        id.y / 2 + upperCascadeTop * _CascadeBufferSize.y
+    );
+
+    int2 upperCoordsRight = upperCoordsLeft + int2(probesCountX, 0);
+
+    // _OutCascade[lowerCoords] = float4(id.xy * _CascadeBufferSize.zw * float2(1.0f, 2.0f), 0, 1);
+    // _OutCascade[upperCoordsLeft] = float4(id.xy * _CascadeBufferSize.zw * float2(1.0f, 2.0f), 0, 1);
+
+    float4 radiance = _OutCascade[lowerCoords];
+    float4 upperRadianceLeft = LoadUpperCascade(upperCoordsLeft);
+    float4 upperRadianceRight = LoadUpperCascade(upperCoordsRight);
+
+    float4 upperRadiance = (upperRadianceLeft + upperRadianceRight) * 0.5f;
+
+    radiance.rgb += upperRadiance.rgb * radiance.a;
+    radiance.a *= upperRadiance.a;
+
+    _OutCascade[lowerCoords] = radiance;
+    // _OutCascade[lowerCoords] = float4(upperCoordsLeft * _CascadeBufferSize.zw, 0, 1);
 }
-
-

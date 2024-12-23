@@ -19,8 +19,9 @@ namespace AlexMalyutinDev.RadianceCascades
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             // 512 => 512 / 8 = 64 probes in row
-            var desc = new RenderTextureDescriptor(512 * 4, 256 * 4)
+            var desc = new RenderTextureDescriptor(512 * 2, 256 * 2)
             {
+                sRGB = false,
                 enableRandomWrite = true,
             };
             RenderingUtils.ReAllocateIfNeeded(ref _cascade0, desc, name: "Cascade0");
@@ -36,6 +37,14 @@ namespace AlexMalyutinDev.RadianceCascades
                     renderer.cameraDepthTargetHandle,
                     ref _cascade0
                 );
+
+                cmd.BeginSample("Merge");
+                _compute.Merge(cmd, 4, ref _cascade0);
+                _compute.Merge(cmd, 3, ref _cascade0);
+                _compute.Merge(cmd, 2, ref _cascade0);
+                _compute.Merge(cmd, 1, ref _cascade0);
+                cmd.EndSample("Merge");
+
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
             }
