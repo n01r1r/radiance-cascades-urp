@@ -288,7 +288,7 @@ Shader "Hidden/RadianceCascade/Blit"
             {
                 // TODO: Bilateral Upsampling.
                 float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
-                // uv += _BlitTexture_TexelSize.xy * 0.5f;
+                uv += _BlitTexture_TexelSize.xy * 0.5f;
                 float2 horizontalOffset = float2(1.0f / 8.0f, 0.0f);
                 
                 half4 color = 0.0f;

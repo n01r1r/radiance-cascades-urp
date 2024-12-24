@@ -71,18 +71,28 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     // and then i should write then into four pixels in cascade. Potentially, it should reduce time by 4.
     float angleD = (angleId.y - 1.5f) * HALF_PI * 0.25f;
 
-    float2 direction;
-    sincos(angleX, direction.y, direction.x);
-    // TODO: Ray scale?
-    direction *= min(_ColorTexture_TexelSize.x, _ColorTexture_TexelSize.y); 
-    // direction *= _ColorTexture_TexelSize.xy;
 
     // TODO: Calculate probe center!
     float2 rayOrigin = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
 
     float depth0 = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, rayOrigin, 0);
+
+    #if 1 // NOTE: Horizontal plane snapping
+    float3 positionWS = GetPositionWS(rayOrigin, depth0);
+    float3 viewDirectionWS = normalize(positionWS - _WorldSpaceCameraPos);
+    positionWS = Intersect(0.0f, float3(0, 1, 0), _WorldSpaceCameraPos, viewDirectionWS);
+    positionWS -= viewDirectionWS * 0.1f;
+    float4 positionCS = TransformWorldToHClip(positionWS);
+    depth0 = positionCS.z / positionCS.w;
+    #endif
+
+    float2 direction;
+    sincos(angleX, direction.y, direction.x);
+    // TODO: Ray scale?
+    direction *= min(_ColorTexture_TexelSize.x, _ColorTexture_TexelSize.y) * 1.0f;
+    // direction *= _ColorTexture_TexelSize.xy;
+
     float depth0Thick = depth0 + 0.001f;
-    depth0 += FLT_MIN;
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
     int2 range = Ranges[cascadeLevel];
@@ -140,18 +150,17 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     }
 
     // TODO: Move this staff to the CPU side
-    float lowerCascadeBottom = pow(2, -_CascadeLevel);
-    float upperCascadeBottom = pow(2, -(_CascadeLevel + 1));
-    const float anglesCount = 8.0f * pow(2.0f, _CascadeLevel - 1.0f);
+    float lowerCascadeUVBottom = pow(2, -_CascadeLevel);
+    float upperCascadeUVBottom = pow(2, -(_CascadeLevel + 1));
+    const float lowerAnglesCount = 8.0f * pow(2.0f, _CascadeLevel - 1.0f);
 
     // BUG: Wrong y offset?
-    int2 lowerCoords = id.xy + int2(0, lowerCascadeBottom * _CascadeBufferSize.y);
+    int2 lowerCoords = id.xy + int2(0, lowerCascadeUVBottom * _CascadeBufferSize.y);
 
     // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
-    // float2 uv = id.xy * _CascadeBufferSize.zw + _CascadeBufferSize.zw * 0.5f;
-    float2 uv = float2(id.xy + 0.5f) / (_CascadeBufferSize.xy + 1.0f);
-    float2 upperUVLeft = uv * 0.5f + float2(floor(uv.x * anglesCount) / anglesCount, upperCascadeBottom);
-    float2 upperUVRight = upperUVLeft + float2(0.5f / anglesCount, 0.0f);
+    float2 uv = float2(id.xy + 0.5f) / (_CascadeBufferSize.xy - 1.0f);
+    float2 upperUVLeft = uv * 0.5f + float2(floor(uv.x * lowerAnglesCount) / lowerAnglesCount, upperCascadeUVBottom);
+    float2 upperUVRight = upperUVLeft + float2(0.5f / lowerAnglesCount, 0.0f);
 
     float4 radiance = _LowerCascade[lowerCoords];
     if (radiance.a < 0.5f) return;

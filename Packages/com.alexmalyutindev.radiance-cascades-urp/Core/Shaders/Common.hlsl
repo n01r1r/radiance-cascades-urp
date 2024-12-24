@@ -90,3 +90,19 @@ int2 CalculateRange(int cascadeLevel)
 
     return int2(start, end);
 }
+
+float3 GetPositionWS(float2 screenUV, float rawDepth)
+{
+    screenUV = screenUV * 2 - 1;
+    return ComputeWorldSpacePosition(
+        float4(screenUV.x, -screenUV.y, rawDepth, 1),
+        unity_MatrixInvVP // _InvViewProjection
+    );
+}
+
+float3 Intersect(float3 planeP, float3 planeN, float3 rayP, float3 rayD)
+{
+    float d = dot(planeP, -planeN);
+    float t = -(d + dot(rayP, planeN)) / dot(rayD, planeN);
+    return rayP + t * rayD;
+}
