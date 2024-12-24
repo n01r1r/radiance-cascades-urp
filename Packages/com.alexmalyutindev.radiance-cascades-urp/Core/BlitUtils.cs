@@ -11,7 +11,7 @@ namespace AlexMalyutinDev.RadianceCascades
         public static void Blit(CommandBuffer cmd, Material material, int pass)
         {
             Initialize();
-            cmd.DrawMesh(s_QuadMesh, Matrix4x4.identity, material, pass);
+            cmd.DrawMesh(s_QuadMesh, Matrix4x4.identity, material, 0, pass);
         }
         
         public static void BlitTexture(CommandBuffer cmd, Texture texture, Material material, int pass)

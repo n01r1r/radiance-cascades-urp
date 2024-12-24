@@ -18,10 +18,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
         public void Render(CommandBuffer cmd, RTHandle color, RTHandle depth, ref RTHandle target)
         {
-            cmd.BeginSample("Render");
-
-            cmd.SetRenderTarget(target);
-            cmd.ClearRenderTarget(false, true, Color.red);
+            cmd.BeginSample("RadianceCascade.Render");
 
             var colorRT = color.rt;
             var colorTexelSize = new Vector4(
@@ -53,12 +50,12 @@ namespace AlexMalyutinDev.RadianceCascades
                 1
             );
             
-            cmd.EndSample("Render");
+            cmd.EndSample("RadianceCascade.Render");
         }
 
         public void Merge(CommandBuffer cmd, ref RTHandle target)
         {
-            cmd.BeginSample("Merge");
+            cmd.BeginSample("RadianceCascade.Merge");
 
             var targetRT = target.rt;
             var cascadeBufferSize = new Vector4(
@@ -72,19 +69,19 @@ namespace AlexMalyutinDev.RadianceCascades
             // NOTE: Bind same buffer to sample from it, cus LowerCascade in RWTexture.
             cmd.SetComputeTextureParam(_compute, _mergKernel, ShaderIds.UpperCascade, target);
 
-            for (int upperCascadeLevel = 4; upperCascadeLevel > 0; upperCascadeLevel--)
+            for (int upperCascadeLevelId = 4; upperCascadeLevelId > 0; upperCascadeLevelId--)
             {
-                cmd.SetComputeIntParam(_compute, ShaderIds.CascadeLevel, upperCascadeLevel);
+                cmd.SetComputeIntParam(_compute, ShaderIds.CascadeLevel, upperCascadeLevelId);
                 cmd.DispatchCompute(
                     _compute,
                     _mergKernel,
                     targetRT.width / 8,
-                    targetRT.height / (8 * 1 << upperCascadeLevel),
+                    targetRT.height / (8 * 1 << upperCascadeLevelId),
                     1
                 );
             }
 
-            cmd.EndSample("Merge");
+            cmd.EndSample("RadianceCascade.Merge");
         }
     }
 }

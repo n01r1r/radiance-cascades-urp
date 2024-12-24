@@ -232,5 +232,77 @@ Shader "Hidden/RadianceCascade/Blit"
             }
             ENDHLSL
         }
+
+        Pass
+        {
+            Name "Combine"
+            ZTest Greater
+            ZWrite Off
+            Blend One One
+
+            HLSLPROGRAM
+            #pragma vertex Vertex
+            #pragma fragment Fragment
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
+
+            TEXTURE2D_X(_BlitTexture);
+            TEXTURE2D(_GBuffer0);
+            float4 _BlitTexture_TexelSize;
+            float3 _CameraForward;
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 texcoord : TEXCOORD0;
+            };
+
+            Varyings Vertex(Attributes input)
+            {
+                Varyings output;
+
+                float4 pos = input.positionOS * 2.0f - 1.0f;
+                float2 uv = input.uv;
+
+                #if UNITY_UV_STARTS_AT_TOP
+                uv.y = 1 - uv.y;
+                #endif
+
+                pos.z = UNITY_RAW_FAR_CLIP_VALUE;
+                output.positionCS = pos;
+                output.texcoord = uv;
+                return output;
+            }
+
+
+            half4 Fragment(Varyings input) : SV_TARGET
+            {
+                // TODO: Bilateral Upsampling.
+                float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
+                // uv += _BlitTexture_TexelSize.xy * 0.5f;
+                float2 horizontalOffset = float2(1.0f / 8.0f, 0.0f);
+                
+                half4 color = 0.0f;
+                UNITY_UNROLL
+                for (int i = 0; i < 8; i++)
+                {
+                    // TODO: Sample depth rays.
+                    color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + horizontalOffset * i, 0);
+                }
+
+                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
+                return color * gbuffer0;
+            }
+            ENDHLSL
+        }
     }
 }

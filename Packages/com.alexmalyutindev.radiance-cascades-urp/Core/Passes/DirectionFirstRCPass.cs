@@ -9,11 +9,14 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         private readonly RCDirectionalFirstCS _compute;
         private RTHandle _cascade0;
+        private Material _blitMaterial;
 
         public DirectionFirstRCPass(RadianceCascadeResources resources)
         {
             profilingSampler = new ProfilingSampler("RadianceCascades.DirectionFirst");
             _compute = new RCDirectionalFirstCS(resources.RadianceCascadesDirectionalFirstCS);
+            // TODO: Make proper C# wrapper for Blit/Combine shader!
+            _blitMaterial = resources.BlitMaterial;
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -40,6 +43,11 @@ namespace AlexMalyutinDev.RadianceCascades
                 );
 
                 _compute.Merge(cmd, ref _cascade0);
+                
+                cmd.BeginSample("RadianceCascade.Combine");
+                cmd.SetRenderTarget(renderer.cameraColorTargetHandle);
+                BlitUtils.BlitTexture(cmd,_cascade0, _blitMaterial, 2);
+                cmd.EndSample("RadianceCascade.Combine");
 
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
