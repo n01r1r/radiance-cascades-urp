@@ -49,7 +49,7 @@ namespace AlexMalyutinDev.RadianceCascades
                 targetRT.height / 8, // TODO: Spawn 4 times less threads for depth rays.
                 1
             );
-            
+
             cmd.EndSample("RadianceCascade.Render");
         }
 
@@ -71,6 +71,16 @@ namespace AlexMalyutinDev.RadianceCascades
 
             for (int upperCascadeLevelId = 4; upperCascadeLevelId > 0; upperCascadeLevelId--)
             {
+                var lowerCascadeRect = new Vector4(
+                    0,
+                    targetRT.height * Mathf.Pow(2.0f, -upperCascadeLevelId),
+                    targetRT.width,
+                    targetRT.height / (16f * Mathf.Pow(2.0f, upperCascadeLevelId))
+                );
+                var lowerCascadeUVBottom = Mathf.Pow(0.5f, upperCascadeLevelId);
+                cmd.SetComputeFloatParam(_compute, "_LowerCascadeUVBottom", lowerCascadeUVBottom);
+                cmd.SetComputeFloatParam(_compute, "_UpperCascadeUVBottom", lowerCascadeUVBottom * 0.5f);
+
                 cmd.SetComputeIntParam(_compute, ShaderIds.CascadeLevel, upperCascadeLevelId);
                 cmd.DispatchCompute(
                     _compute,

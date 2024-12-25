@@ -21,7 +21,7 @@ RWTexture2D<float4> _OutCascade;
 
 static const int2 Ranges[] =
 {
-    // int2(0, 2),
+    int2(0, 2),
     int2(2, 4),
     int2(4, 8),
     int2(8, 16),
@@ -30,6 +30,15 @@ static const int2 Ranges[] =
     int2(64, 128),
     int2(128, 256),
     int2(256, 512),
+};
+
+static const int2 Ranges2[] =
+{
+    int2(0, 2),
+    int2(2, 8),
+    int2(8, 32),
+    int2(32, 128),
+    int2(128, 512),
 };
 
 [numthreads(8,8,1)]
@@ -76,6 +85,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float2 rayOrigin = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
 
     float depth0 = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, rayOrigin, 0);
+    float depth0Thick = depth0 + 0.001f;
 
     #if 1 // NOTE: Horizontal plane snapping
     float3 positionWS = GetPositionWS(rayOrigin, depth0);
@@ -84,22 +94,24 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     positionWS -= viewDirectionWS * 0.1f;
     float4 positionCS = TransformWorldToHClip(positionWS);
     depth0 = positionCS.z / positionCS.w;
+
+    positionCS = TransformWorldToHClip(positionWS - viewDirectionWS * 2.0f);
+    depth0Thick = positionCS.z / positionCS.w;
     #endif
 
     float2 direction;
     sincos(angleX, direction.y, direction.x);
     // TODO: Ray scale?
-    direction *= min(_ColorTexture_TexelSize.x, _ColorTexture_TexelSize.y) * 1.0f;
-    // direction *= _ColorTexture_TexelSize.xy;
+    // direction *= min(_ColorTexture_TexelSize.x, _ColorTexture_TexelSize.y) * 1.0f;
+    direction *= _ColorTexture_TexelSize.xy * 2.0f;
 
-    float depth0Thick = depth0 + 0.001f;
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
-    int2 range = Ranges[cascadeLevel];
+    int2 range = Ranges2[cascadeLevel];
     range = CalculateRange(cascadeLevel);
 
     UNITY_LOOP
-    for (int i = range.x; i < range.y; i++)
+    for (int i = range.x; i <= range.y; i++)
     {
         float2 ray = rayOrigin + direction * i;
         if (any(ray < 0.0f || 1.0f < ray)) break;
@@ -131,6 +143,8 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
 
 // UpperCascadeLevel
 float _CascadeLevel;
+float _LowerCascadeUVBottom;
+float _UpperCascadeUVBottom;
 RWTexture2D<float4> _LowerCascade;
 Texture2D<float4> _UpperCascade;
 
@@ -150,23 +164,30 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     }
 
     // TODO: Move this staff to the CPU side
-    float lowerCascadeUVBottom = pow(2, -_CascadeLevel);
-    float upperCascadeUVBottom = pow(2, -(_CascadeLevel + 1));
+    float lowerCascadeUVBottom = _LowerCascadeUVBottom; // pow(2.0f, -_CascadeLevel);
+    float upperCascadeUVBottom = _UpperCascadeUVBottom; // lowerCascadeUVBottom * 0.5f;
+    
     const float lowerAnglesCount = 8.0f * pow(2.0f, _CascadeLevel - 1.0f);
+    const float upperAnglesCount = lowerAnglesCount * 2.0f;
+
+    float2 uv = float2(id.xy + 0.5f) / (_CascadeBufferSize.xy - 1.0f);
+    // float2 uv = float2(id.xy) * _CascadeBufferSize.zw;
+    float lowerAngleId = floor(uv.x * lowerAnglesCount);
+
+    // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
+    float2 upperUVLeft = uv * 0.5f + float2(lowerAngleId / upperAnglesCount, upperCascadeUVBottom);
+    float2 upperUVRight = upperUVLeft + float2(0.5f / lowerAnglesCount, 0.0f);
 
     // BUG: Wrong y offset?
     int2 lowerCoords = id.xy + int2(0, lowerCascadeUVBottom * _CascadeBufferSize.y);
-
-    // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
-    float2 uv = float2(id.xy + 0.5f) / (_CascadeBufferSize.xy - 1.0f);
-    float2 upperUVLeft = uv * 0.5f + float2(floor(uv.x * lowerAnglesCount) / lowerAnglesCount, upperCascadeUVBottom);
-    float2 upperUVRight = upperUVLeft + float2(0.5f / lowerAnglesCount, 0.0f);
-
     float4 radiance = _LowerCascade[lowerCoords];
-    if (radiance.a < 0.5f) return;
+    if (radiance.a < 0.1f) return;
 
     float4 upperRadianceLeft = SampleUpperCascade(upperUVLeft);
     float4 upperRadianceRight = SampleUpperCascade(upperUVRight);
+
+    // _LowerCascade[lowerCoords] = float4(upperUVRight.xx, 0, 1);
+    // return;
 
     float4 upperRadiance = (upperRadianceLeft + upperRadianceRight) * 0.5f;
 

@@ -1,4 +1,5 @@
 using System;
+using InternalBridge;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -9,6 +10,7 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         private readonly RCDirectionalFirstCS _compute;
         private RTHandle _cascade0;
+        private RTHandle _intermediateBuffer;
         private Material _blitMaterial;
 
         public DirectionFirstRCPass(RadianceCascadeResources resources)
@@ -29,6 +31,14 @@ namespace AlexMalyutinDev.RadianceCascades
                 enableRandomWrite = true,
             };
             RenderingUtils.ReAllocateIfNeeded(ref _cascade0, desc, name: "Cascade0");
+
+            desc = new RenderTextureDescriptor(desc.width / 8 * 2, desc.height / 8 * 2)
+            {
+                colorFormat = RenderTextureFormat.ARGBFloat,
+                sRGB = false,
+            };
+            RenderingUtils.ReAllocateIfNeeded(ref _intermediateBuffer, desc, name: "IntermediateTarget");
+
             var renderer = renderingData.cameraData.renderer;
 
             var cmd = CommandBufferPool.Get();
@@ -43,10 +53,13 @@ namespace AlexMalyutinDev.RadianceCascades
                 );
 
                 _compute.Merge(cmd, ref _cascade0);
-                
+
                 cmd.BeginSample("RadianceCascade.Combine");
+                cmd.SetRenderTarget(_intermediateBuffer);
+                cmd.SetGlobalTexture("_GBuffer3", renderer.GetGBuffer(3));
+                BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
                 cmd.SetRenderTarget(renderer.cameraColorTargetHandle);
-                BlitUtils.BlitTexture(cmd,_cascade0, _blitMaterial, 2);
+                BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
                 cmd.EndSample("RadianceCascade.Combine");
 
                 context.ExecuteCommandBuffer(cmd);
