@@ -20,6 +20,8 @@ namespace AlexMalyutinDev.RadianceCascades
         {
             cmd.BeginSample("RadianceCascade.Render");
 
+            cmd.SetRenderTarget(target);
+
             var colorRT = color.rt;
             var colorTexelSize = new Vector4(
                 1.0f / colorRT.width,
@@ -69,24 +71,23 @@ namespace AlexMalyutinDev.RadianceCascades
             // NOTE: Bind same buffer to sample from it, cus LowerCascade in RWTexture.
             cmd.SetComputeTextureParam(_compute, _mergKernel, ShaderIds.UpperCascade, target);
 
-            for (int upperCascadeLevelId = 4; upperCascadeLevelId > 0; upperCascadeLevelId--)
+            cmd.SetRenderTarget(target);
+
+            for (int upperCascadeLevelId = 6; upperCascadeLevelId > 0; upperCascadeLevelId--)
             {
-                var lowerCascadeRect = new Vector4(
-                    0,
-                    targetRT.height * Mathf.Pow(2.0f, -upperCascadeLevelId),
-                    targetRT.width,
-                    targetRT.height / (16f * Mathf.Pow(2.0f, upperCascadeLevelId))
-                );
-                var lowerCascadeUVBottom = Mathf.Pow(0.5f, upperCascadeLevelId);
-                cmd.SetComputeFloatParam(_compute, "_LowerCascadeUVBottom", lowerCascadeUVBottom);
-                cmd.SetComputeFloatParam(_compute, "_UpperCascadeUVBottom", lowerCascadeUVBottom * 0.5f);
+                cmd.SetComputeFloatParam(_compute, "_LowerCascadeBottomCoord", targetRT.height >> (upperCascadeLevelId));
+                cmd.SetComputeFloatParam(_compute, "_UpperCascadeBottomCoord", targetRT.height >> (upperCascadeLevelId + 1));
+
+                var lowerCascadeAngleCount = 8 * (1 << (upperCascadeLevelId - 1));
+                cmd.SetComputeFloatParam(_compute, "_LowerCascadeAnglesCount", lowerCascadeAngleCount);
+                cmd.SetComputeFloatParam(_compute, "_UpperCascadeAnglesCount", lowerCascadeAngleCount * 2);
 
                 cmd.SetComputeIntParam(_compute, ShaderIds.CascadeLevel, upperCascadeLevelId);
                 cmd.DispatchCompute(
                     _compute,
                     _mergKernel,
                     targetRT.width / 8,
-                    targetRT.height / (8 * 1 << upperCascadeLevelId),
+                    targetRT.height / (8 * (1 << upperCascadeLevelId)),
                     1
                 );
             }
