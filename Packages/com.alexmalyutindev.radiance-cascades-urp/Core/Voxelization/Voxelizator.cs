@@ -148,7 +148,8 @@ namespace AlexMalyutinDev.RadianceCascades.Voxelization
             cmd.SetViewProjectionMatrices(cameraData.GetViewMatrix(), cameraData.GetProjectionMatrix());
 
             return;
-            _voxelizatorCompute.Dispatch(cmd, resolution, _rawVoxelBuffer, targetVolume);
+            // TODO: Separate hardcore voxelization.
+            // _voxelizatorCompute.Dispatch(cmd, resolution, _rawVoxelBuffer, targetVolume);
         }
 
         public static void ReAllocateIfNeeded(

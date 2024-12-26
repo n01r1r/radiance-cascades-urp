@@ -291,13 +291,22 @@ Shader "Hidden/RadianceCascade/Blit"
                 float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
                 uv += _BlitTexture_TexelSize.xy * 0.5f;
                 float2 horizontalOffset = float2(1.0f / 8.0f, 0.0f);
+                float2 verticalOffset = float2(0.0f, 1.0f / 8.0f);
 
                 half4 color = 0.0f;
                 UNITY_UNROLL
-                for (int i = 0; i < 8; i++)
+                for (int x = 0; x < 8; x++)
                 {
                     // TODO: Sample depth rays.
-                    color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + horizontalOffset * i, 0);
+                    for (int y = 0; y < 4; y++)
+                    {
+                        color += SAMPLE_TEXTURE2D_LOD(
+                            _BlitTexture,
+                            sampler_LinearClamp,
+                            uv + horizontalOffset * x - verticalOffset * y,
+                            0
+                        ) * 0.25f;
+                    }
                 }
 
                 half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);

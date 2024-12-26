@@ -41,11 +41,28 @@ static const int2 Ranges2[] =
     int2(128, 512),
 };
 
+static const int2 Ranges3[] =
+{
+    int2(0, 3),
+    int2(3, 8),
+    int2(8, 16),
+    int2(16, 28),
+    int2(28, 42),
+};
+
 static const int IntLog2[] = {
     1, 2, 4, 8, 16, 32,
 };
 
 // #define DEBUG
+
+float3 WorldToClipSpace(float3 positionWS)
+{
+    float4 positionCS = TransformWorldToHClip(positionWS);
+    positionCS.xyz /= positionCS.w;
+    positionCS.xy = mad(positionCS.xy, float2(0.5f, -0.5f), float2(0.5f, 0.5f));
+    return positionCS.xyz;
+}
 
 [numthreads(8,8,1)]
 void RenderCascade(uint3 id : SV_DispatchThreadID)
@@ -66,73 +83,84 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    const int cascadeFactor = pow(2.0f, cascadeLevel);
-    const int projRays = 8.0f * cascadeFactor;
-    const int depthRays = floor(4.0f * cascadeFactor * 2.0f);
+    const float cascadeFactor = pow(2.0f, cascadeLevel);
+    const float projRays = 8.0f * cascadeFactor;
+    const float depthRays = floor(4.0f * cascadeFactor * 2.0f);
 
     // NOTE: 8 proj x 4 depth rays in Cascade0
     float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.125f; // 1/8
-    float2 angleId = floor(coords * float2(projRays, depthRays) * _CascadeBufferSize.zw);
+    float2 angleId;
+    angleId.x = floor(coords.x * projRays * _CascadeBufferSize.z);
+    angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
     float angleX = (angleId.x + 0.5f) * deltaAngle;
-
-    // TODO: Remove separate thread to depth rays, cast 4 rays in one thread.
-    if (angleId.y % 4.0f < 2.5f)
-    {
-        _OutCascade[coords] = float4(0, 0.0f, 0.0f, 0.0f);
-        return;
-    }
 
     // TODO: Depth rays angle!
     // TODO: I can spawn less threads, cus depth rays can be done in simultaneously (one pixel in depth buffer)
     // and then i should write then into four pixels in cascade. Potentially, it should reduce time by 4.
     float angleD = (angleId.y - 1.5f) * HALF_PI * 0.25f;
 
+    // TODO: Remove separate thread to depth rays, cast 4 rays in one thread.
+    // if (angleId.y > 2.5f)
+    // {
+    //     _OutCascade[coords] = float4(0, 0.0f, 0.0f, 0.0f);
+    //     return;
+    // }
+
+    if (frac((1.0f - coords.y * _CascadeBufferSize.w) * depthRays) == 0 ||
+        frac(coords.x * projRays * _CascadeBufferSize.z) == 0
+    )
+    {
+        // NOTE: Horizontal black line to separate cascades.
+        _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+
 
     // TODO: Calculate probe center!
-    float2 rayOrigin = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
+    float2 probeCenterUV = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
     float2 probesCount = floor(_CascadeBufferSize.xy / float2(projRays, depthRays));
-    rayOrigin = (floor(rayOrigin * probesCount) + 0.5) / (probesCount + 1.0f);
+    probeCenterUV = (floor(probeCenterUV * probesCount) - 0.5) / (probesCount - 1.0f);
 
-    float depth0 = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, rayOrigin, 0);
-    float3 positionWS = GetPositionWS(rayOrigin, depth0);
-    float3 viewDirectionWS = normalize(positionWS - _WorldSpaceCameraPos);
+    float probeDepth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, probeCenterUV, 0);
 
-    #if 1 // NOTE: Horizontal plane snapping
-    positionWS = Intersect(0.0f, float3(0, 1, 0), _WorldSpaceCameraPos, viewDirectionWS);
+    if (probeDepth == UNITY_RAW_FAR_CLIP_VALUE)
+    {
+        _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+        return;
+    }
+    
+    float3 rayOriginWS = GetPositionWS(probeCenterUV, probeDepth);
+    float3 viewDirectionWS = normalize(rayOriginWS - _WorldSpaceCameraPos);
+    #if 0 // NOTE: Horizontal plane snapping
+    rayOriginWS = Intersect(0.0f, float3(0, 1, 0), _WorldSpaceCameraPos, viewDirectionWS);
     #endif
+    rayOriginWS -= viewDirectionWS * 0.1f;
 
-    positionWS -= viewDirectionWS * 0.1f;
-    float4 positionCS = TransformWorldToHClip(positionWS);
-    depth0 = positionCS.z / positionCS.w;
-
-    positionCS = TransformWorldToHClip(positionWS - viewDirectionWS * 0.5f);
-    float depth0Thick = positionCS.z / positionCS.w;
-
-    float2 direction;
-    sincos(angleX, direction.y, direction.x);
-    // TODO: Ray scale?
-    // direction *= min(_ColorTexture_TexelSize.x, _ColorTexture_TexelSize.y) * 1.0f;
-    direction *= _ColorTexture_TexelSize.xy * 1.0f;
+    float3 directionWS = float3(0.0f, lerp(-0.1f, 0.3f, angleId.y * 0.33334f), 0.0f);
+    sincos(angleX, directionWS.z, directionWS.x);
+    directionWS = normalize(directionWS);
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
-    int2 range = Ranges2[cascadeLevel];
-    range = CalculateRange(cascadeLevel);
+    int2 range = Ranges3[cascadeLevel];
+    // range = CalculateRange(cascadeLevel);
 
     UNITY_LOOP
-    for (int i = range.x; i <= range.y; i++)
+    for (int i = range.x; i < range.y; i++)
     {
-        float2 ray = rayOrigin + direction * i;
-        if (any(ray < 0.0f || 1.0f < ray)) break;
+        float3 rayWS = rayOriginWS + directionWS * i * 0.05f;
+        float3 rayCS = WorldToClipSpace(rayWS);
+        if (any(rayCS.xy < 0.0f || 1.0f < rayCS.xy)) break;
 
-        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, ray, 0);
+        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, rayCS.xy, 0);
+        bool test = depth > rayCS.z && depth < rayCS.z + 0.001f;
 
         // TODO: Compare depth for 4 depth rays.
         // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
         // I need to compensate perspective distortion. Rays shot in camera direction will be smaller
         // than ray out of camera.
-        if (depth0 < depth && depth < depth0Thick)
+        if (test)
         {
-            color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_PointClamp, ray, 0).rgb;
+            color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_PointClamp, rayCS.xy, 0).rgb;
             color.a = 0.0f;
             break;
         }
@@ -179,7 +207,8 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     float lowerAngleId = floor(uv.x * _LowerCascadeAnglesCount);
 
     // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
-    float2 upperUVLeft = uv * 0.5f + float2(lowerAngleId / _UpperCascadeAnglesCount, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
+    float2 upperUVLeft = uv * 0.5f + float2(lowerAngleId / _UpperCascadeAnglesCount,
+                                            _UpperCascadeBottomCoord * _CascadeBufferSize.w);
     float2 upperUVRight = upperUVLeft + float2(0.5f / _LowerCascadeAnglesCount, 0.0f);
 
     int2 lowerCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
