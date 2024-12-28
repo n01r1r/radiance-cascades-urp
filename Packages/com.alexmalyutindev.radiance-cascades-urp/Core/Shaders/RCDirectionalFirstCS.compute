@@ -56,7 +56,7 @@ static const int IntLog2[] = {
 
 // #define DEBUG
 
-float3 WorldToUVW(float3 positionWS)
+float3 TransformWorldToScreenSpace(float3 positionWS)
 {
     float4 positionCS = TransformWorldToHClip(positionWS);
     positionCS.xyz /= positionCS.w;
@@ -129,44 +129,56 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    float3 rayOriginWS = GetPositionWS(probeCenterUV, probeDepth);
-    float3 viewDirectionWS = normalize(rayOriginWS - _WorldSpaceCameraPos);
+    float3 probeCenterWS = GetPositionWS(probeCenterUV, probeDepth);
+    float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
     #if 0 // NOTE: Horizontal plane snapping
-    rayOriginWS = Intersect(0.0f, float3(0, 1, 0), _WorldSpaceCameraPos, viewDirectionWS);
+    probeCenterWS = Intersect(float3(0.0f, 0.5f, 0.0f), float3(0.0f, 1.0f, 0.0f), _WorldSpaceCameraPos, viewDirectionWS);
     #endif
-    rayOriginWS -= viewDirectionWS * 0.2f;
+    probeCenterWS -= viewDirectionWS * 0.2f;
 
-    float3 directionWS = float3(0.0f, lerp(-0.4f, 0.4f, angleId.y * 0.33334f), 0.0f);
+    // TODO: Fix directionWS.z, wrong scaling
+    float3 directionWS = float3(0.0f, lerp(-0.5f, 0.5f, angleId.y * 0.33334f), 0.0f);
     sincos(angleX, directionWS.z, directionWS.x);
     directionWS = normalize(directionWS);
 
     int2 range = Ranges[cascadeLevel];
     
     float rayScale = 0.05f;
-    rayOriginWS = rayOriginWS + directionWS * rayScale * range.x;
+    float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
     float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
 
-    float3 rayOriginCS = WorldToUVW(rayOriginWS);
-    float3 rayEndCS = WorldToUVW(rayEndWS);
+    float3 rayOriginVS = TransformWorldToView(rayOriginWS);
+    float3 rayEndVS = TransformWorldToView(rayEndWS);
+
+    float3 rayOriginCS = TransformWorldToScreenSpace(rayOriginWS);
+    float3 rayEndCS = TransformWorldToScreenSpace(rayEndWS);
 
     float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.25f;
     stepsCount = min(stepsCount, 50);
+    stepsCount = max(2, stepsCount);
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
     UNITY_LOOP
     for (float i = 0; i < stepsCount; i++)
     {
-        float3 ray = lerp(rayOriginCS, rayEndCS, i / (stepsCount - 1.0f));
+        // TODO: Use DDA for ray marching.
+        float3 rayWS = lerp(rayOriginWS, rayEndWS, i / (stepsCount - 1.0f));
+        float3 ray = TransformWorldToScreenSpace(rayWS);
         if (any(ray.xy < 0 || 1 < ray.xy)) break;
 
-        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, ray.xy, 0);
-
-        // TODO: Compare depth for 4 depth rays.
+        // TODO: Use Hi-Z Buffer.
+        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_LinearClamp, ray.xy, 0);
+        // TODO: Compare depth in VS.
         // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
         // I need to compensate perspective distortion. Rays shot in camera direction will be smaller
         // than ray out of camera.
-        if (depth > ray.z && depth < ray.z + 0.0005f)
+        float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
+
+        // TODO: Compare depth for 4 depth rays.
+        bool test = depth > ray.z && depth < ray.z + 0.0005f;
+        
+        if (test)
         {
             color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, ray.xy, 0);
             color.a = 0.0f;
