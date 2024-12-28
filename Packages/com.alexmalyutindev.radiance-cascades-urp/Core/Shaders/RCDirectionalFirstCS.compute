@@ -146,14 +146,14 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     probeCenterWS -= viewDirectionWS * 0.1f;
 
     // TODO: Fix directionWS.z, wrong scaling
-    float3 directionWS = float3(0.0f, lerp(-0.3f, 0.3f, angleId.y * 0.33334f), 0.0f);
+    float3 directionWS = float3(0.0f, lerp(-0.5f, 0.5f, angleId.y * 0.33334f), 0.0f);
     sincos(angleX, directionWS.z, directionWS.x);
     directionWS = normalize(directionWS);
 
-    int2 range = Ranges[cascadeLevel];
+    int2 range = Ranges2[cascadeLevel];
     // range = CalculateRange(cascadeLevel);
     
-    float rayScale = 0.04f;
+    float rayScale = 0.02f;
     float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
     float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
 
@@ -188,8 +188,9 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 0.25f);
 
         // TODO: Compare depth for 4 depth rays.
-        float4 depth4Test = linearDepth.xxxx < float4(0.1f, 0.05f, -0.05f, -0.1f) - rayVS.zzzz;
-        float occlusion = dot(depth4Test, 0.1f);
+        // TODO: Add ray length dependency.
+        float4 depth4Test = linearDepth.xxxx < float4(0.2f, 0.1f, -0.1f, -0.2f) - rayVS.zzzz;
+        float occlusion = dot(depth4Test, 0.2f);
 
         if (test)
         {

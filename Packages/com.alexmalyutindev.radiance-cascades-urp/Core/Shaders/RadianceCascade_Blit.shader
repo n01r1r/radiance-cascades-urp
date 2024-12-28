@@ -289,8 +289,9 @@ Shader "Hidden/RadianceCascade/Blit"
             {
                 // TODO: Bilateral Upsampling.
                 // TODO: Fix uv, to trim cascade padding.
+                input.texcoord = (input.texcoord * _BlitTexture_TexelSize.zw + 1.0f) / (_BlitTexture_TexelSize.zw - 2.0f);
                 float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
-                
+
                 uv += _BlitTexture_TexelSize.xy * 0.5f;
                 float2 horizontalOffset = float2(1.0f / 8.0f, 0.0f);
                 float2 verticalOffset = float2(0.0f, 1.0f / 8.0f);
@@ -306,11 +307,11 @@ Shader "Hidden/RadianceCascade/Blit"
                             sampler_LinearClamp,
                             uv + horizontalOffset * x - verticalOffset * y,
                             0
-                        ) * 0.25f;
+                        );
                     }
                 }
 
-                return color;
+                return color * 0.25f;
             }
             ENDHLSL
         }
@@ -326,8 +327,9 @@ Shader "Hidden/RadianceCascade/Blit"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             TEXTURE2D_X(_BlitTexture);
@@ -369,7 +371,13 @@ Shader "Hidden/RadianceCascade/Blit"
             half4 Fragment(Varyings input) : SV_TARGET
             {
                 float2 uv = input.texcoord;
-                float4 color = SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv, 0);
+                float4 color = 0;
+                float4 offset = 0.5f * float4(1.0f, 1.0f, -1.0f, -1.0f) * _BlitTexture_TexelSize.xyxy;
+                color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.xy, 0);
+                color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.xw, 0);
+                color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.zy, 0);
+                color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.zw, 0);
+                color *= 0.25f;
 
                 // TODO: Bilateral Upsampling.
                 // float depth0 = SampleSceneDepth(floor(uv * _BlitTexture_TexelSize.zw) * _BlitTexture_TexelSize.xy);
