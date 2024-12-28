@@ -5,10 +5,14 @@ This project is a recreation of Alexander Sannikov's Radiance Cascades technique
 
 # WIP
 
-### Cornell box
-![radiance-cascades-preview](./Pictures/radiance-cascades-preview.png)
-### Sponza
+### Direction first probes
+![radiance-cascades-preview](./Pictures/direction-first-sponza.png)
+
+### 3D Probes
 ![radiance-cascades-preview-sponza](./Pictures/radiance-cascades-preview-sponza.png)
+
+### Simple 2D ScreenSpace probes
+![radiance-cascades-preview](./Pictures/radiance-cascades-preview.png)
 
 
 References

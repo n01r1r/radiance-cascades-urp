@@ -15,6 +15,7 @@ namespace AlexMalyutinDev.RadianceCascades.HiZDepth
 
         public HiZDepthPass(Material hiZDepthMaterial, ComputeShader hiZDepthCS)
         {
+            profilingSampler = new ProfilingSampler("HiZDepthPass");
             _hiZDepthCS = hiZDepthCS;
             _material = hiZDepthMaterial;
         }
@@ -104,6 +105,8 @@ namespace AlexMalyutinDev.RadianceCascades.HiZDepth
 
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
+            
+            CommandBufferPool.Release(cmd);
         }
 
         public void Dispose()

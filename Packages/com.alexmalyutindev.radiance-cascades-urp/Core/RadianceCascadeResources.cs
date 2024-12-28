@@ -7,6 +7,7 @@ namespace AlexMalyutinDev.RadianceCascades
         public Material BlitMaterial;
         public ComputeShader RadianceCascades;
         public ComputeShader RadianceCascades3d;
+        public ComputeShader RadianceCascadesDirectionalFirstCS;
 
         [Space]
         public Shader Voxelizator;

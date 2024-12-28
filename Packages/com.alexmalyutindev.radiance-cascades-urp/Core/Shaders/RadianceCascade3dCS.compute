@@ -202,15 +202,6 @@ float4 RayTraceVolume(float3 originWS, float3 directionWS, int2 range)
     return float4(0, 0, 0, 1);
 }
 
-float3 GetPositionWS(float2 screenUV, float rawDepth)
-{
-    screenUV = screenUV * 2 - 1;
-    return ComputeWorldSpacePosition(
-        float4(screenUV.x, -screenUV.y, rawDepth, 1),
-        unity_MatrixInvVP // _InvViewProjection
-    );
-}
-
 #define RAD_TO_DEG 57.29578f
 #define DEG_TO_RAD 0.017453292f
 
