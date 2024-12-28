@@ -288,7 +288,9 @@ Shader "Hidden/RadianceCascade/Blit"
             half4 Fragment(Varyings input) : SV_TARGET
             {
                 // TODO: Bilateral Upsampling.
+                // TODO: Fix uv, to trim cascade padding.
                 float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
+                
                 uv += _BlitTexture_TexelSize.xy * 0.5f;
                 float2 horizontalOffset = float2(1.0f / 8.0f, 0.0f);
                 float2 verticalOffset = float2(0.0f, 1.0f / 8.0f);
@@ -297,7 +299,6 @@ Shader "Hidden/RadianceCascade/Blit"
                 UNITY_UNROLL
                 for (int x = 0; x < 8; x++)
                 {
-                    // TODO: Sample depth rays.
                     for (int y = 0; y < 4; y++)
                     {
                         color += SAMPLE_TEXTURE2D_LOD(
@@ -309,10 +310,7 @@ Shader "Hidden/RadianceCascade/Blit"
                     }
                 }
 
-                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
-                half4 gbuffer3 = SAMPLE_TEXTURE2D_LOD(_GBuffer3, sampler_PointClamp, input.texcoord, 0);
-                gbuffer0 += gbuffer3;
-                return color * gbuffer0;
+                return color;
             }
             ENDHLSL
         }
@@ -334,6 +332,7 @@ Shader "Hidden/RadianceCascade/Blit"
 
             TEXTURE2D_X(_BlitTexture);
             TEXTURE2D(_GBuffer0);
+            TEXTURE2D(_GBuffer3);
             float4 _BlitTexture_TexelSize;
             float3 _CameraForward;
 
@@ -377,7 +376,10 @@ Shader "Hidden/RadianceCascade/Blit"
                 // float depth1 = SampleSceneDepth(uv);
                 // color *= (depth0 > depth1);
 
-                return color;
+                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
+                half4 gbuffer3 = SAMPLE_TEXTURE2D_LOD(_GBuffer3, sampler_PointClamp, input.texcoord, 0);
+                gbuffer0 += gbuffer3;
+                return color * gbuffer0;
             }
             ENDHLSL
         }

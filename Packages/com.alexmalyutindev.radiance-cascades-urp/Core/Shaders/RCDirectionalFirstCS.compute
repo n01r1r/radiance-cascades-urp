@@ -64,6 +64,14 @@ float3 TransformWorldToScreenSpace(float3 positionWS)
     return positionCS.xyz;
 }
 
+float3 TransformViewToScreenSpace(float3 positionVS)
+{
+    float4 positionCS = TransformWViewToHClip(positionVS);
+    positionCS.xyz /= positionCS.w;
+    positionCS.xy = mad(positionCS.xy, float2(0.5f, -0.5f), float2(0.5f, 0.5f));
+    return positionCS.xyz;
+}
+
 [numthreads(8,8,1)]
 void RenderCascade(uint3 id : SV_DispatchThreadID)
 {
@@ -116,10 +124,11 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     }
 
 
-    // TODO: Calculate probe center!
-    float2 probeCenterUV = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
     float2 probesCount = floor(_CascadeBufferSize.xy / float2(projRays, depthRays));
-    probeCenterUV = (floor(probeCenterUV * probesCount) - 0.5) / (probesCount - 1.0f);
+    // TODO: Check probe center calculation.
+    float2 probeCenterUV = frac(coords * _CascadeBufferSize.zw * float2(projRays, depthRays));
+    // probeCenterUV = (floor(probeCenterUV * probesCount) - 0.5f) / (probesCount - 1.0f);
+    probeCenterUV = floor(probeCenterUV * probesCount) / probesCount;
 
     float probeDepth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, probeCenterUV, 0);
 
@@ -134,16 +143,17 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     #if 0 // NOTE: Horizontal plane snapping
     probeCenterWS = Intersect(float3(0.0f, 0.5f, 0.0f), float3(0.0f, 1.0f, 0.0f), _WorldSpaceCameraPos, viewDirectionWS);
     #endif
-    probeCenterWS -= viewDirectionWS * 0.2f;
+    probeCenterWS -= viewDirectionWS * 0.1f;
 
     // TODO: Fix directionWS.z, wrong scaling
-    float3 directionWS = float3(0.0f, lerp(-0.5f, 0.5f, angleId.y * 0.33334f), 0.0f);
+    float3 directionWS = float3(0.0f, lerp(-0.3f, 0.3f, angleId.y * 0.33334f), 0.0f);
     sincos(angleX, directionWS.z, directionWS.x);
     directionWS = normalize(directionWS);
 
     int2 range = Ranges[cascadeLevel];
+    // range = CalculateRange(cascadeLevel);
     
-    float rayScale = 0.05f;
+    float rayScale = 0.04f;
     float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
     float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
 
@@ -153,8 +163,8 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float3 rayOriginCS = TransformWorldToScreenSpace(rayOriginWS);
     float3 rayEndCS = TransformWorldToScreenSpace(rayEndWS);
 
-    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.25f;
-    stepsCount = min(stepsCount, 50);
+    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.5f;
+    stepsCount = min(stepsCount, 50); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -163,8 +173,8 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     for (float i = 0; i < stepsCount; i++)
     {
         // TODO: Use DDA for ray marching.
-        float3 rayWS = lerp(rayOriginWS, rayEndWS, i / (stepsCount - 1.0f));
-        float3 ray = TransformWorldToScreenSpace(rayWS);
+        float3 rayVS = lerp(rayOriginVS, rayEndVS, i / (stepsCount - 1.0f));
+        float3 ray = TransformViewToScreenSpace(rayVS);
         if (any(ray.xy < 0 || 1 < ray.xy)) break;
 
         // TODO: Use Hi-Z Buffer.
@@ -175,13 +185,16 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         // than ray out of camera.
         float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
 
+        bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 0.25f);
+
         // TODO: Compare depth for 4 depth rays.
-        bool test = depth > ray.z && depth < ray.z + 0.0005f;
-        
+        float4 depth4Test = linearDepth.xxxx < float4(0.1f, 0.05f, -0.05f, -0.1f) - rayVS.zzzz;
+        float occlusion = dot(depth4Test, 0.1f);
+
         if (test)
         {
             color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, ray.xy, 0);
-            color.a = 0.0f;
+            color.a = occlusion; // 0.0f;
             break;
         }
     }
@@ -215,8 +228,7 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     float lowerAngleId = floor(uv.x * _LowerCascadeAnglesCount);
 
     // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
-    float2 upperUVLeft = uv * 0.5f + float2(lowerAngleId / _UpperCascadeAnglesCount,
-                                            _UpperCascadeBottomCoord * _CascadeBufferSize.w);
+    float2 upperUVLeft = uv * 0.5f + float2(lowerAngleId / _UpperCascadeAnglesCount, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
     float2 upperUVRight = upperUVLeft + float2(0.5f / _LowerCascadeAnglesCount, 0.0f);
 
     int2 lowerCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
@@ -226,7 +238,7 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     // _LowerCascade[lowerCoords] = test;
     // return;
 
-    if (radiance.a < 0.1f)
+    if (radiance.a < 0.5f)
     {
         return;
     }
@@ -237,6 +249,7 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     float4 upperRadiance = (upperRadianceLeft + upperRadianceRight) * 0.5f;
 
     radiance.rgb += upperRadiance.rgb * radiance.a;
+    // TODO: Do I need this?
     radiance.a *= upperRadiance.a;
 
     _LowerCascade[lowerCoords] = radiance;
