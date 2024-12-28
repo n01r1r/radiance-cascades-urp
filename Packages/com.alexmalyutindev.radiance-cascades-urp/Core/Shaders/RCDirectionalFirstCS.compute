@@ -56,7 +56,7 @@ static const int IntLog2[] = {
 
 // #define DEBUG
 
-float3 WorldToClipSpace(float3 positionWS)
+float3 WorldToUVW(float3 positionWS)
 {
     float4 positionCS = TransformWorldToHClip(positionWS);
     positionCS.xyz /= positionCS.w;
@@ -128,61 +128,57 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 1.0f);
         return;
     }
-    
+
     float3 rayOriginWS = GetPositionWS(probeCenterUV, probeDepth);
     float3 viewDirectionWS = normalize(rayOriginWS - _WorldSpaceCameraPos);
     #if 0 // NOTE: Horizontal plane snapping
     rayOriginWS = Intersect(0.0f, float3(0, 1, 0), _WorldSpaceCameraPos, viewDirectionWS);
     #endif
-    rayOriginWS -= viewDirectionWS * 0.1f;
+    rayOriginWS -= viewDirectionWS * 0.2f;
 
-    float3 directionWS = float3(0.0f, lerp(-0.1f, 0.3f, angleId.y * 0.33334f), 0.0f);
+    float3 directionWS = float3(0.0f, lerp(-0.4f, 0.4f, angleId.y * 0.33334f), 0.0f);
     sincos(angleX, directionWS.z, directionWS.x);
     directionWS = normalize(directionWS);
 
+    int2 range = Ranges[cascadeLevel];
+    
+    float rayScale = 0.05f;
+    rayOriginWS = rayOriginWS + directionWS * rayScale * range.x;
+    float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
+
+    float3 rayOriginCS = WorldToUVW(rayOriginWS);
+    float3 rayEndCS = WorldToUVW(rayEndWS);
+
+    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.25f;
+    stepsCount = min(stepsCount, 50);
+
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
-    int2 range = Ranges3[cascadeLevel];
-    // range = CalculateRange(cascadeLevel);
 
     UNITY_LOOP
-    for (int i = range.x; i < range.y; i++)
+    for (float i = 0; i < stepsCount; i++)
     {
-        float3 rayWS = rayOriginWS + directionWS * i * 0.05f;
-        float3 rayCS = WorldToClipSpace(rayWS);
-        if (any(rayCS.xy < 0.0f || 1.0f < rayCS.xy)) break;
+        float3 ray = lerp(rayOriginCS, rayEndCS, i / (stepsCount - 1.0f));
+        if (any(ray.xy < 0 || 1 < ray.xy)) break;
 
-        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, rayCS.xy, 0);
-        bool test = depth > rayCS.z && depth < rayCS.z + 0.001f;
+        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, ray.xy, 0);
 
         // TODO: Compare depth for 4 depth rays.
         // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
         // I need to compensate perspective distortion. Rays shot in camera direction will be smaller
         // than ray out of camera.
-        if (test)
+        if (depth > ray.z && depth < ray.z + 0.0005f)
         {
-            color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_PointClamp, rayCS.xy, 0).rgb;
+            color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, ray.xy, 0);
             color.a = 0.0f;
             break;
         }
     }
 
-    #ifdef DEBUG
-    // color += float4(0, cascadeLevel * 0.1f, id.x * _CascadeBufferSize.z, 0);
-    color.rg += fmod(angleId, 2) * 0.2f;
-    #endif
-
     _OutCascade[coords] = color;
-
-    // float l = angleX * INV_TWO_PI;
-    // float3 c0 = lerp(float3(1, 0, 0), float3(0, 1, 0), l);
-    // float3 c1 = lerp(float3(0, 1, 0), float3(0, 0, 1), l);
-    // float3 c2 = lerp(c0, c1, l);
-    // _OutCascade[coords] = float4(c2 * 0.5f, 1.0f);
 }
 
 
-// UpperCascadeLevel
-float _CascadeLevel;
+float _CascadeLevel; // UpperCascadeLevel
 
 float _LowerCascadeBottomCoord;
 float _UpperCascadeBottomCoord;
