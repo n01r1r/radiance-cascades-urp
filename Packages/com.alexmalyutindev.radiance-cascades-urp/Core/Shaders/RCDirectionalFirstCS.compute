@@ -87,7 +87,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     // NOTE: Hardcode 5 Cascades.
     if (cascadeLevel > 5)
     {
-        _OutCascade[coords] = float4(0, 0.0f, 0.0f, 0.0f);
+        _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
 
@@ -100,8 +100,8 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float2 angleId;
     angleId.x = floor(coords.x * projRays * _CascadeBufferSize.z);
     angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
-    float angleX = (angleId.x + 0.5f) * deltaAngle;
 
+    float angleX = (angleId.x + 0.5f) * deltaAngle;
     // TODO: Depth rays angle!
     // TODO: I can spawn less threads, cus depth rays can be done in simultaneously (one pixel in depth buffer)
     // and then i should write then into four pixels in cascade. Potentially, it should reduce time by 4.
@@ -118,7 +118,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         frac(coords.x * projRays * _CascadeBufferSize.z) == 0
     )
     {
-        // NOTE: Horizontal black line to separate cascades.
+        // NOTE: Black line to separate cascades.
         _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
@@ -146,10 +146,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     #endif
     probeCenterWS -= viewDirectionWS * 0.1f;
 
-    // TODO: Fix directionWS.z, wrong scaling
-    float3 directionWS = float3(0.0f, lerp(-1.0f, 1.0f, angleId.y * 0.33334f), 0.0f);
-    sincos(angleX, directionWS.z, directionWS.x);
-    directionWS = normalize(directionWS);
+    float3 directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
 
     int2 range = Ranges[cascadeLevel];
     // range = CalculateRange(cascadeLevel);
@@ -196,19 +193,24 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         if (test)
         {
             color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, ray.xy, 0);
+
+            float3 normalWS = SAMPLE_TEXTURE2D_LOD(_NormalsTexture, sampler_LinearClamp, ray.xy, 0).xyz;
+            occlusion = max(0, dot(directionWS, normalWS));
+
             color.a = occlusion; // 0.0f;
             break;
         }
     }
 
-    // color.rgb = lerp(float3(1, 0, 0), float3(0, 1, 0), (angleId.x + angleId.y) % 2) * 0.5;
-    // color.b = angleX * INV_TWO_PI;
+    // color.rg += probeCenterUV * 0.5f;
+    // color.rgb += lerp(float3(1, 0, 0), float3(0, 1, 0), (angleId.x + angleId.y) % 2) * 0.5;
+    // color.b += angleX * INV_TWO_PI * 0.5f;
 
     _OutCascade[coords] = color;
 }
 
 
-float _CascadeLevel; // UpperCascadeLevel
+float _LowerCascadeLevel;
 
 float _LowerCascadeBottomCoord;
 float _UpperCascadeBottomCoord;
@@ -226,18 +228,106 @@ float4 SampleUpperCascade(float2 uv)
     return radiance;
 }
 
+float4 LoadUpperCascadeBilinear(int2 coords, float2 weights)
+{
+    float4 a = _LowerCascade[coords];
+    float4 b = _LowerCascade[coords + int2(1, 0)];
+    float4 c = _LowerCascade[coords + int2(0, 1)];
+    float4 d = _LowerCascade[coords + int2(1, 1)];
+
+    float4 e = lerp(a, b, weights.x);
+    float4 f = lerp(c, d, weights.x);
+
+    return lerp(e, f, weights.y);
+}
+
 [numthreads(8,8,1)]
 void MergeCascade(uint3 id : SV_DispatchThreadID)
 {
+    // ._______________.             .
+    // |       |       | <- lower    |
+    // |_______|_______|    ^^^^^   / \
+    // |___|___|___|___| <- upper  /   \
+
+    float2 baseUV = id.xy * _CascadeBufferSize.zw * float2(1.0f, pow(2.0f, _LowerCascadeLevel));
+
+    float2 localUV = frac(baseUV * float2(_LowerCascadeAnglesCount, 4.0f)) / float2(_LowerCascadeAnglesCount, 4.0f);
+    float2 cascadeUV = floor(baseUV * float2(_LowerCascadeAnglesCount, 4.0f)) / float2(_LowerCascadeAnglesCount, 4.0f);
+
+    float2 localUV2 = frac(baseUV * float2(_UpperCascadeAnglesCount, 4.0f));
+    float2 cascadeUV2 = floor(baseUV * float2(_UpperCascadeAnglesCount, 4.0f)) / float2(_UpperCascadeAnglesCount, 4.0f);
+
+    int2 lowerCascadeSize = floor(_CascadeBufferSize.xy * 0.125f * pow(0.5f, _LowerCascadeLevel));
+    float2 upperCascadeSize = lowerCascadeSize * 0.5f;
+
+    // localUV2 = (localUV2 * lowerCascadeSize + 2.5f) / (lowerCascadeSize + 4.0f); 
+    localUV2 = (lerp(2, lowerCascadeSize - 1, localUV2) + 0.5f) / lowerCascadeSize;
+
+
+    localUV = saturate(localUV);
+    bool border = any(localUV == 0);
+    bool2 border2 = localUV == 0;
+
+    localUV = (localUV * lowerCascadeSize + 1.0f) / (lowerCascadeSize + 2.0f);
+
+    cascadeUV.y /= pow(2.0f, _LowerCascadeLevel + 1);
+    localUV.y /= pow(2.0f, _LowerCascadeLevel + 1);
+
+    int2 lowerCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
+
+    _LowerCascade[lowerCoords] = float4(cascadeUV + localUV, 0, 1);
+
+    float2 upperCascadeUV = cascadeUV + float2(0.0f, _UpperCascadeBottomCoord * _CascadeBufferSize.w) + localUV;
+
+    float2 upperCascadeUV2 = (cascadeUV2 * float2(1.0f, 1.0f) + localUV2 / float2(_UpperCascadeAnglesCount, 4.0f))
+        * float2(1.0f, 0.5f * pow(0.5f, _LowerCascadeLevel))
+        + float2(0.0f, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
+
+    float4 r = SampleUpperCascade(upperCascadeUV2 * float2(0.5f, 1.0f));
+
+    // NEW
+    int2 u = id.xy * 0.5f;
+
+    // _LowerCascade[lowerCoords] = float4(floor(u / (lowerCascadeSize + 1)) * 0.05f, 0, 1);
+
+    float2 w = frac(id.xy * 0.5f) * 0.5f + 0.25f;
+
+    int2 l = clamp(u % (lowerCascadeSize + 1), 2, lowerCascadeSize - 1);
+    u = floor(u / (lowerCascadeSize + 1)) * (lowerCascadeSize + 1) * int2(2, 1) + l;
+
+    // _LowerCascade[lowerCoords] = float4(l * 0.125f * 0.5f, 0, 1);
+    // _LowerCascade[lowerCoords] = float4(u * 0.125f * 0.5f, 0, 1);
+    // return;
+
+    u += int2(0, _UpperCascadeBottomCoord);
+    r = LoadUpperCascadeBilinear(u, w);
+    u += int2(lowerCascadeSize.x, 0);
+    r += LoadUpperCascadeBilinear(u, w);
+    r *= 0.5f;
+
+    
+
+    // MERGE
+    float4 r0 = _LowerCascade[lowerCoords];
+    r0.rgb = r.rgb * r0.a;
+    r0.a *= r.a;
+
+    if (border) r0 = float4(0, 0, 0.5f, 0);
+
+    _LowerCascade[lowerCoords] = r0;
+    _LowerCascade[lowerCoords] = float4(u * 0.01f, 0, 1);
+    return;
+
     float2 uv = float2(id.xy + 0.5f) / (_CascadeBufferSize.xy - 1.0f);
     float lowerAngleId = floor(uv.x * _LowerCascadeAnglesCount);
 
     // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
     float2 offset = float2(lowerAngleId / _UpperCascadeAnglesCount, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
+
+    // BUG: Offset cascade padding.
     float2 upperUVLeft = uv * 0.5f + offset;
     float2 upperUVRight = upperUVLeft + float2(0.5f / _LowerCascadeAnglesCount, 0.0f);
 
-    int2 lowerCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
     float4 radiance = _LowerCascade[lowerCoords];
 
     if (radiance.a < 0.5f)
