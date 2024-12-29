@@ -162,7 +162,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float3 rayEndCS = TransformWorldToScreenSpace(rayEndWS);
 
     float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.5f;
-    stepsCount = min(stepsCount, 50); // NOTE: Oversampling prevention.
+    stepsCount = min(stepsCount, 100); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -250,99 +250,34 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     // |___|___|___|___| <- upper  /   \
 
     float2 baseUV = id.xy * _CascadeBufferSize.zw * float2(1.0f, pow(2.0f, _LowerCascadeLevel));
-
     float2 localUV = frac(baseUV * float2(_LowerCascadeAnglesCount, 4.0f)) / float2(_LowerCascadeAnglesCount, 4.0f);
-    float2 cascadeUV = floor(baseUV * float2(_LowerCascadeAnglesCount, 4.0f)) / float2(_LowerCascadeAnglesCount, 4.0f);
-
-    float2 localUV2 = frac(baseUV * float2(_UpperCascadeAnglesCount, 4.0f));
-    float2 cascadeUV2 = floor(baseUV * float2(_UpperCascadeAnglesCount, 4.0f)) / float2(_UpperCascadeAnglesCount, 4.0f);
 
     int2 lowerCascadeSize = floor(_CascadeBufferSize.xy * 0.125f * pow(0.5f, _LowerCascadeLevel));
-    float2 upperCascadeSize = lowerCascadeSize * 0.5f;
-
-    // localUV2 = (localUV2 * lowerCascadeSize + 2.5f) / (lowerCascadeSize + 4.0f); 
-    localUV2 = (lerp(2, lowerCascadeSize - 1, localUV2) + 0.5f) / lowerCascadeSize;
-
+    int2 upperCascadeSize = lowerCascadeSize * 0.5f;
 
     localUV = saturate(localUV);
     bool border = any(localUV == 0);
-    bool2 border2 = localUV == 0;
+    if (border) return;
 
-    localUV = (localUV * lowerCascadeSize + 1.0f) / (lowerCascadeSize + 2.0f);
+    int2 lowerCascadeCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
 
-    cascadeUV.y /= pow(2.0f, _LowerCascadeLevel + 1);
-    localUV.y /= pow(2.0f, _LowerCascadeLevel + 1);
+    int2 upperCascadeCoords = id.xy * 0.5f;
+    float2 bilinearWeight = frac(id.xy * 0.5f) + 0.25f;
 
-    int2 lowerCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
+    int2 localCoords = upperCascadeCoords % (lowerCascadeSize + 1);
+    localCoords = clamp(localCoords, 1, lowerCascadeSize - 1);
+    upperCascadeCoords = floor(upperCascadeCoords / (lowerCascadeSize + 1)) * (lowerCascadeSize + 1) * int2(2, 1) + localCoords;
 
-    _LowerCascade[lowerCoords] = float4(cascadeUV + localUV, 0, 1);
-
-    float2 upperCascadeUV = cascadeUV + float2(0.0f, _UpperCascadeBottomCoord * _CascadeBufferSize.w) + localUV;
-
-    float2 upperCascadeUV2 = (cascadeUV2 * float2(1.0f, 1.0f) + localUV2 / float2(_UpperCascadeAnglesCount, 4.0f))
-        * float2(1.0f, 0.5f * pow(0.5f, _LowerCascadeLevel))
-        + float2(0.0f, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
-
-    float4 r = SampleUpperCascade(upperCascadeUV2 * float2(0.5f, 1.0f));
-
-    // NEW
-    int2 u = id.xy * 0.5f;
-
-    // _LowerCascade[lowerCoords] = float4(floor(u / (lowerCascadeSize + 1)) * 0.05f, 0, 1);
-
-    float2 w = frac(id.xy * 0.5f) * 0.5f + 0.25f;
-
-    int2 l = clamp(u % (lowerCascadeSize + 1), 2, lowerCascadeSize - 1);
-    u = floor(u / (lowerCascadeSize + 1)) * (lowerCascadeSize + 1) * int2(2, 1) + l;
-
-    // _LowerCascade[lowerCoords] = float4(l * 0.125f * 0.5f, 0, 1);
-    // _LowerCascade[lowerCoords] = float4(u * 0.125f * 0.5f, 0, 1);
-    // return;
-
-    u += int2(0, _UpperCascadeBottomCoord);
-    r = LoadUpperCascadeBilinear(u, w);
-    u += int2(lowerCascadeSize.x, 0);
-    r += LoadUpperCascadeBilinear(u, w);
-    r *= 0.5f;
-
-    
+    upperCascadeCoords += int2(0, _UpperCascadeBottomCoord);
+    float4 upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
+    upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperRadiance *= 0.5f;
 
     // MERGE
-    float4 r0 = _LowerCascade[lowerCoords];
-    r0.rgb = r.rgb * r0.a;
-    r0.a *= r.a;
-
-    if (border) r0 = float4(0, 0, 0.5f, 0);
-
-    _LowerCascade[lowerCoords] = r0;
-    _LowerCascade[lowerCoords] = float4(u * 0.01f, 0, 1);
-    return;
-
-    float2 uv = float2(id.xy + 0.5f) / (_CascadeBufferSize.xy - 1.0f);
-    float lowerAngleId = floor(uv.x * _LowerCascadeAnglesCount);
-
-    // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
-    float2 offset = float2(lowerAngleId / _UpperCascadeAnglesCount, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
-
-    // BUG: Offset cascade padding.
-    float2 upperUVLeft = uv * 0.5f + offset;
-    float2 upperUVRight = upperUVLeft + float2(0.5f / _LowerCascadeAnglesCount, 0.0f);
-
-    float4 radiance = _LowerCascade[lowerCoords];
-
-    if (radiance.a < 0.5f)
-    {
-        // return;
-    }
-
-    float4 upperRadianceLeft = SampleUpperCascade(upperUVLeft);
-    float4 upperRadianceRight = SampleUpperCascade(upperUVRight);
-
-    float4 upperRadiance = (upperRadianceLeft + upperRadianceRight) * 0.5f;
-
+    float4 radiance = _LowerCascade[lowerCascadeCoords];
     radiance.rgb += upperRadiance.rgb * radiance.a;
-    // TODO: Do I need this?
     radiance.a *= upperRadiance.a;
 
-    _LowerCascade[lowerCoords] = radiance;
+    _LowerCascade[lowerCascadeCoords] = radiance;
 }
