@@ -11,6 +11,7 @@ namespace AlexMalyutinDev.RadianceCascades
         private readonly RCDirectionalFirstCS _compute;
         private RTHandle _cascade0;
         private RTHandle _intermediateBuffer;
+        private RTHandle _intermediateBuffer2;
         private Material _blitMaterial;
 
         public DirectionFirstRCPass(RadianceCascadeResources resources)
@@ -38,6 +39,10 @@ namespace AlexMalyutinDev.RadianceCascades
                 sRGB = false,
             };
             RenderingUtils.ReAllocateIfNeeded(ref _intermediateBuffer, desc, name: "IntermediateTarget");
+ 
+            // desc.width *= 2;
+            // desc.height *= 2;
+            // RenderingUtils.ReAllocateIfNeeded(ref _intermediateBuffer2, desc, name: "IntermediateTarget2");
 
             var renderer = renderingData.cameraData.renderer;
 
@@ -49,17 +54,21 @@ namespace AlexMalyutinDev.RadianceCascades
                     cmd,
                     renderer.cameraColorTargetHandle,
                     renderer.cameraDepthTargetHandle,
+                    renderer.GetGBuffer(2),
                     ref _cascade0
                 );
 
                 _compute.Merge(cmd, ref _cascade0);
 
                 cmd.BeginSample("RadianceCascade.Combine");
-                cmd.SetRenderTarget(_intermediateBuffer);
-                cmd.SetGlobalTexture("_GBuffer3", renderer.GetGBuffer(3));
-                BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
-                cmd.SetRenderTarget(renderer.cameraColorTargetHandle);
-                BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
+                {
+                    cmd.SetRenderTarget(_intermediateBuffer);
+                    cmd.SetGlobalTexture("_GBuffer3", renderer.GetGBuffer(3));
+                    BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
+
+                    cmd.SetRenderTarget(renderer.cameraColorTargetHandle);
+                    BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
+                }
                 cmd.EndSample("RadianceCascade.Combine");
 
                 context.ExecuteCommandBuffer(cmd);

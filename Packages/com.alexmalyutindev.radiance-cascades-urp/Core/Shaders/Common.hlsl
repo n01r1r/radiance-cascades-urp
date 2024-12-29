@@ -106,3 +106,17 @@ float3 Intersect(float3 planeP, float3 planeN, float3 rayP, float3 rayD)
     float t = -(d + dot(rayP, planeN)) / dot(rayD, planeN);
     return rayP + t * rayD;
 }
+
+static float4 DirectionFirstRayZ = float4(-2.0f, -1.0f, 1.0f, 2.0f);
+
+float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
+{
+    float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.125f; // 1/8
+    float angleX = (angleId.x + 0.5f + angleId.y * 0.25f) * deltaAngle;
+
+    // TODO: Fix directionWS.z, wrong scaling
+    float3 directionWS = float3(0.0f, lerp(-0.6f, 0.6f, angleId.y * 0.33334f), 0.0f);
+    // float3 directionWS = float3(0.0f, DirectionFirstRayZ[angleId.y], 0.0f);
+    sincos(angleX, directionWS.z, directionWS.x);
+    return normalize(directionWS);
+}

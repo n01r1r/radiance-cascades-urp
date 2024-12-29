@@ -87,7 +87,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     // NOTE: Hardcode 5 Cascades.
     if (cascadeLevel > 5)
     {
-        _OutCascade[coords] = float4(0, 0.0f, 0.0f, 0.0f);
+        _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
 
@@ -100,8 +100,8 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float2 angleId;
     angleId.x = floor(coords.x * projRays * _CascadeBufferSize.z);
     angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
-    float angleX = (angleId.x + 0.5f) * deltaAngle;
 
+    float angleX = (angleId.x + 0.5f) * deltaAngle;
     // TODO: Depth rays angle!
     // TODO: I can spawn less threads, cus depth rays can be done in simultaneously (one pixel in depth buffer)
     // and then i should write then into four pixels in cascade. Potentially, it should reduce time by 4.
@@ -118,7 +118,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         frac(coords.x * projRays * _CascadeBufferSize.z) == 0
     )
     {
-        // NOTE: Horizontal black line to separate cascades.
+        // NOTE: Black line to separate cascades.
         _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
@@ -130,6 +130,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     // probeCenterUV = (floor(probeCenterUV * probesCount) - 0.5f) / (probesCount - 1.0f);
     probeCenterUV = floor(probeCenterUV * probesCount) / probesCount;
 
+    // TODO: Use Hi-Z Buffer.
     float probeDepth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, probeCenterUV, 0);
 
     if (probeDepth == UNITY_RAW_FAR_CLIP_VALUE)
@@ -143,17 +144,14 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     #if 0 // NOTE: Horizontal plane snapping
     probeCenterWS = Intersect(float3(0.0f, 0.5f, 0.0f), float3(0.0f, 1.0f, 0.0f), _WorldSpaceCameraPos, viewDirectionWS);
     #endif
-    probeCenterWS -= viewDirectionWS * 0.1f;
+    probeCenterWS -= viewDirectionWS * 0.2f;
 
-    // TODO: Fix directionWS.z, wrong scaling
-    float3 directionWS = float3(0.0f, lerp(-0.5f, 0.5f, angleId.y * 0.33334f), 0.0f);
-    sincos(angleX, directionWS.z, directionWS.x);
-    directionWS = normalize(directionWS);
+    float3 directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
 
-    int2 range = Ranges2[cascadeLevel];
+    int2 range = Ranges[cascadeLevel];
     // range = CalculateRange(cascadeLevel);
-    
-    float rayScale = 0.02f;
+
+    float rayScale = 0.06f;
     float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
     float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
 
@@ -164,7 +162,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float3 rayEndCS = TransformWorldToScreenSpace(rayEndWS);
 
     float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.5f;
-    stepsCount = min(stepsCount, 50); // NOTE: Oversampling prevention.
+    stepsCount = min(stepsCount, 100); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -178,7 +176,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         if (any(ray.xy < 0 || 1 < ray.xy)) break;
 
         // TODO: Use Hi-Z Buffer.
-        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_LinearClamp, ray.xy, 0);
+        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, ray.xy, 0);
         // TODO: Compare depth in VS.
         // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
         // I need to compensate perspective distortion. Rays shot in camera direction will be smaller
@@ -195,16 +193,24 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         if (test)
         {
             color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, ray.xy, 0);
-            color.a = occlusion; // 0.0f;
+
+            // float3 normalWS = SAMPLE_TEXTURE2D_LOD(_NormalsTexture, sampler_LinearClamp, ray.xy, 0).xyz;
+            // occlusion = max(0, dot(directionWS, normalWS));
+
+            color.a = 0.0f; // occlusion;
             break;
         }
     }
+
+    // color.rg += probeCenterUV * 0.5f;
+    // color.rgb += lerp(float3(1, 0, 0), float3(0, 1, 0), (angleId.x + angleId.y) % 2) * 0.5;
+    // color.b += angleX * INV_TWO_PI * 0.5f;
 
     _OutCascade[coords] = color;
 }
 
 
-float _CascadeLevel; // UpperCascadeLevel
+float _LowerCascadeLevel;
 
 float _LowerCascadeBottomCoord;
 float _UpperCascadeBottomCoord;
@@ -222,36 +228,68 @@ float4 SampleUpperCascade(float2 uv)
     return radiance;
 }
 
+float4 LoadUpperCascadeBilinear(int2 coords, float2 weights)
+{
+    float4 a = _LowerCascade[coords];
+    float4 b = _LowerCascade[coords + int2(1, 0)];
+    float4 c = _LowerCascade[coords + int2(0, 1)];
+    float4 d = _LowerCascade[coords + int2(1, 1)];
+
+    float4 e = lerp(a, b, weights.x);
+    float4 f = lerp(c, d, weights.x);
+
+    return lerp(e, f, weights.y);
+}
+
 [numthreads(8,8,1)]
 void MergeCascade(uint3 id : SV_DispatchThreadID)
 {
-    float2 uv = float2(id.xy + 0.5f) / (_CascadeBufferSize.xy - 1.0f);
-    float lowerAngleId = floor(uv.x * _LowerCascadeAnglesCount);
+    // ._______________.             .
+    // |       |       | <- lower    |
+    // |_______|_______|    ^^^^^   / \
+    // |___|___|___|___| <- upper  /   \
 
-    // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
-    float2 upperUVLeft = uv * 0.5f + float2(lowerAngleId / _UpperCascadeAnglesCount, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
-    float2 upperUVRight = upperUVLeft + float2(0.5f / _LowerCascadeAnglesCount, 0.0f);
+    float2 baseUV = id.xy * _CascadeBufferSize.zw * float2(1.0f, pow(2.0f, _LowerCascadeLevel));
+    float2 localUV = frac(baseUV * float2(_LowerCascadeAnglesCount, 4.0f)) / float2(_LowerCascadeAnglesCount, 4.0f);
 
-    int2 lowerCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
-    float4 radiance = _LowerCascade[lowerCoords];
+    // TODO: Make uniforms
+    const int2 lowerCascadeSize = floor(_CascadeBufferSize.xy * 0.125f * pow(0.5f, _LowerCascadeLevel));
+    const int2 upperCascadeSize = lowerCascadeSize * 0.5f;
 
-    // float4 test = SAMPLE_TEXTURE2D_LOD(_UpperCascade, sampler_LinearClamp, upperUVLeft, 0);
-    // _LowerCascade[lowerCoords] = test;
-    // return;
+    localUV = saturate(localUV);
+    bool border = any(localUV == 0);
+    if (border) return;
 
-    if (radiance.a < 0.5f)
-    {
-        return;
-    }
+    int2 lowerCascadeCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
 
-    float4 upperRadianceLeft = SampleUpperCascade(upperUVLeft);
-    float4 upperRadianceRight = SampleUpperCascade(upperUVRight);
+    int2 upperCascadeCoords = id.xy * 0.5f;
+    int2 localCoords = upperCascadeCoords % (lowerCascadeSize + 1);
 
-    float4 upperRadiance = (upperRadianceLeft + upperRadianceRight) * 0.5f;
+    float2 bilinearWeight = frac(id.xy * 0.5f) + 0.25f;
+    // NOTE: Clamp weight to the border prope.
+    bilinearWeight = localCoords > lowerCascadeSize - 1 ? float2(1.0f, 1.0f) : bilinearWeight;
+    bilinearWeight = localCoords < 1 ? float2(0.0f, 0.0f) : bilinearWeight;
+    
+    localCoords = clamp(localCoords, 1, lowerCascadeSize - 1);
+    upperCascadeCoords = floor(upperCascadeCoords / (lowerCascadeSize + 1)) * (lowerCascadeSize + 1) * int2(2, 1) + localCoords;
+    upperCascadeCoords += int2(0, _UpperCascadeBottomCoord);
 
+#if LOAD_UPPER_CASCADE
+    float4 upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
+    upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperRadiance *= 0.5f;
+#else
+    float4 upperRadiance = SampleUpperCascade((upperCascadeCoords + bilinearWeight) * _CascadeBufferSize.zw);
+    upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
+    upperRadiance += SampleUpperCascade((upperCascadeCoords + bilinearWeight) * _CascadeBufferSize.zw);
+    upperRadiance *= 0.5f;
+#endif
+
+    // MERGE
+    float4 radiance = _LowerCascade[lowerCascadeCoords];
     radiance.rgb += upperRadiance.rgb * radiance.a;
-    // TODO: Do I need this?
     radiance.a *= upperRadiance.a;
 
-    _LowerCascade[lowerCoords] = radiance;
+    _LowerCascade[lowerCascadeCoords] = radiance;
 }

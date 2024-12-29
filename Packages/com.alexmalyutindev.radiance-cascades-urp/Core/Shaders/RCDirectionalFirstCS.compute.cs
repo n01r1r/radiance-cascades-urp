@@ -16,7 +16,7 @@ namespace AlexMalyutinDev.RadianceCascades
             _mergKernel = _compute.FindKernel("MergeCascade");
         }
 
-        public void Render(CommandBuffer cmd, RTHandle color, RTHandle depth, ref RTHandle target)
+        public void Render(CommandBuffer cmd, RTHandle color, RTHandle depth, RTHandle normals, ref RTHandle target)
         {
             cmd.BeginSample("RadianceCascade.Render");
 
@@ -32,6 +32,7 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeVectorParam(_compute, ShaderIds.ColorTextureTexelSize, colorTexelSize);
             cmd.SetComputeTextureParam(_compute, _renderKernel, ShaderIds.ColorTexture, color);
             cmd.SetComputeTextureParam(_compute, _renderKernel, ShaderIds.DepthTexture, depth);
+            cmd.SetComputeTextureParam(_compute, _renderKernel, ShaderIds.NormalsTexture, normals);
 
             var targetRT = target.rt;
             var cascadeBufferSize = new Vector4(
@@ -73,21 +74,21 @@ namespace AlexMalyutinDev.RadianceCascades
 
             cmd.SetRenderTarget(target);
 
-            for (int upperCascadeLevelId = 6; upperCascadeLevelId > 0; upperCascadeLevelId--)
+            for (int lowerCascadeLevelId = 4; lowerCascadeLevelId >= 0; lowerCascadeLevelId--)
             {
-                cmd.SetComputeFloatParam(_compute, "_LowerCascadeBottomCoord", targetRT.height >> (upperCascadeLevelId));
-                cmd.SetComputeFloatParam(_compute, "_UpperCascadeBottomCoord", targetRT.height >> (upperCascadeLevelId + 1));
+                cmd.SetComputeFloatParam(_compute, "_LowerCascadeBottomCoord", targetRT.height >> (lowerCascadeLevelId + 1));
+                cmd.SetComputeFloatParam(_compute, "_UpperCascadeBottomCoord", targetRT.height >> (lowerCascadeLevelId + 2));
 
-                var lowerCascadeAngleCount = 8 * (1 << (upperCascadeLevelId - 1));
+                var lowerCascadeAngleCount = 8 * (1 << lowerCascadeLevelId);
                 cmd.SetComputeFloatParam(_compute, "_LowerCascadeAnglesCount", lowerCascadeAngleCount);
                 cmd.SetComputeFloatParam(_compute, "_UpperCascadeAnglesCount", lowerCascadeAngleCount * 2);
 
-                cmd.SetComputeIntParam(_compute, ShaderIds.CascadeLevel, upperCascadeLevelId);
+                cmd.SetComputeIntParam(_compute, ShaderIds.LowerCascadeLevel, lowerCascadeLevelId + 1);
                 cmd.DispatchCompute(
                     _compute,
                     _mergKernel,
                     targetRT.width / 8,
-                    targetRT.height / (8 * (1 << upperCascadeLevelId)),
+                    targetRT.height / (8 * (2 << lowerCascadeLevelId)),
                     1
                 );
             }

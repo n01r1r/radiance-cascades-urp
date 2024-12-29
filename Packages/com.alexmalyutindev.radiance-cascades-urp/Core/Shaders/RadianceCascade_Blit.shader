@@ -248,9 +248,12 @@ Shader "Hidden/RadianceCascade/Blit"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
+            #include "Common.hlsl"
 
             TEXTURE2D_X(_BlitTexture);
             TEXTURE2D(_GBuffer0); // Color
+            TEXTURE2D(_GBuffer1); // Color
+            TEXTURE2D(_GBuffer2); // Normals
             TEXTURE2D(_GBuffer3); // Emmision
             float4 _BlitTexture_TexelSize;
             float3 _CameraForward;
@@ -287,6 +290,8 @@ Shader "Hidden/RadianceCascade/Blit"
 
             half4 Fragment(Varyings input) : SV_TARGET
             {
+                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
+                
                 // TODO: Bilateral Upsampling.
                 // TODO: Fix uv, to trim cascade padding.
                 input.texcoord = (input.texcoord * _BlitTexture_TexelSize.zw + 1.0f) / (_BlitTexture_TexelSize.zw - 2.0f);
@@ -302,16 +307,19 @@ Shader "Hidden/RadianceCascade/Blit"
                 {
                     for (int y = 0; y < 4; y++)
                     {
+                        float3 direction = GetRay_DirectionFirst(float2(x, y), 0);
+                        float NdotL = dot(direction, normalWS);
+                        
                         color += SAMPLE_TEXTURE2D_LOD(
                             _BlitTexture,
                             sampler_LinearClamp,
                             uv + horizontalOffset * x - verticalOffset * y,
                             0
-                        );
+                        ) * max(0, NdotL);
                     }
                 }
 
-                return color * 0.25f;
+                return color;
             }
             ENDHLSL
         }
@@ -372,7 +380,7 @@ Shader "Hidden/RadianceCascade/Blit"
             {
                 float2 uv = input.texcoord;
                 float4 color = 0;
-                float4 offset = 0.5f * float4(1.0f, 1.0f, -1.0f, -1.0f) * _BlitTexture_TexelSize.xyxy;
+                float4 offset = 0.64f * float4(1.0f, 1.0f, -1.0f, -1.0f) * _BlitTexture_TexelSize.xyxy;
                 color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.xy, 0);
                 color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.xw, 0);
                 color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.zy, 0);
