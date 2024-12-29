@@ -73,7 +73,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
             cmd.SetRenderTarget(target);
 
-            for (int upperCascadeLevelId = 6; upperCascadeLevelId > 0; upperCascadeLevelId--)
+            for (int upperCascadeLevelId = 5; upperCascadeLevelId > 0; upperCascadeLevelId--)
             {
                 cmd.SetComputeFloatParam(_compute, "_LowerCascadeBottomCoord", targetRT.height >> (upperCascadeLevelId));
                 cmd.SetComputeFloatParam(_compute, "_UpperCascadeBottomCoord", targetRT.height >> (upperCascadeLevelId + 1));

@@ -130,6 +130,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     // probeCenterUV = (floor(probeCenterUV * probesCount) - 0.5f) / (probesCount - 1.0f);
     probeCenterUV = floor(probeCenterUV * probesCount) / probesCount;
 
+    // TODO: Use Hi-Z Buffer.
     float probeDepth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, probeCenterUV, 0);
 
     if (probeDepth == UNITY_RAW_FAR_CLIP_VALUE)
@@ -146,14 +147,14 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     probeCenterWS -= viewDirectionWS * 0.1f;
 
     // TODO: Fix directionWS.z, wrong scaling
-    float3 directionWS = float3(0.0f, lerp(-0.5f, 0.5f, angleId.y * 0.33334f), 0.0f);
+    float3 directionWS = float3(0.0f, lerp(-1.0f, 1.0f, angleId.y * 0.33334f), 0.0f);
     sincos(angleX, directionWS.z, directionWS.x);
     directionWS = normalize(directionWS);
 
-    int2 range = Ranges2[cascadeLevel];
+    int2 range = Ranges[cascadeLevel];
     // range = CalculateRange(cascadeLevel);
-    
-    float rayScale = 0.02f;
+
+    float rayScale = 0.1f;
     float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
     float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
 
@@ -178,7 +179,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         if (any(ray.xy < 0 || 1 < ray.xy)) break;
 
         // TODO: Use Hi-Z Buffer.
-        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_LinearClamp, ray.xy, 0);
+        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, ray.xy, 0);
         // TODO: Compare depth in VS.
         // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
         // I need to compensate perspective distortion. Rays shot in camera direction will be smaller
@@ -199,6 +200,9 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
             break;
         }
     }
+
+    // color.rgb = lerp(float3(1, 0, 0), float3(0, 1, 0), (angleId.x + angleId.y) % 2) * 0.5;
+    // color.b = angleX * INV_TWO_PI;
 
     _OutCascade[coords] = color;
 }
@@ -229,19 +233,16 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     float lowerAngleId = floor(uv.x * _LowerCascadeAnglesCount);
 
     // NOTE: This *0.5f is subpixel for bilinear sampling of UpperCascade
-    float2 upperUVLeft = uv * 0.5f + float2(lowerAngleId / _UpperCascadeAnglesCount, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
+    float2 offset = float2(lowerAngleId / _UpperCascadeAnglesCount, _UpperCascadeBottomCoord * _CascadeBufferSize.w);
+    float2 upperUVLeft = uv * 0.5f + offset;
     float2 upperUVRight = upperUVLeft + float2(0.5f / _LowerCascadeAnglesCount, 0.0f);
 
     int2 lowerCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
     float4 radiance = _LowerCascade[lowerCoords];
 
-    // float4 test = SAMPLE_TEXTURE2D_LOD(_UpperCascade, sampler_LinearClamp, upperUVLeft, 0);
-    // _LowerCascade[lowerCoords] = test;
-    // return;
-
     if (radiance.a < 0.5f)
     {
-        return;
+        // return;
     }
 
     float4 upperRadianceLeft = SampleUpperCascade(upperUVLeft);
