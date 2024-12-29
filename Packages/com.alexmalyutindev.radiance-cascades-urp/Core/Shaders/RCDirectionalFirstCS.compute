@@ -144,14 +144,14 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     #if 0 // NOTE: Horizontal plane snapping
     probeCenterWS = Intersect(float3(0.0f, 0.5f, 0.0f), float3(0.0f, 1.0f, 0.0f), _WorldSpaceCameraPos, viewDirectionWS);
     #endif
-    probeCenterWS -= viewDirectionWS * 0.1f;
+    probeCenterWS -= viewDirectionWS * 0.2f;
 
     float3 directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
 
     int2 range = Ranges[cascadeLevel];
     // range = CalculateRange(cascadeLevel);
 
-    float rayScale = 0.1f;
+    float rayScale = 0.06f;
     float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
     float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
 

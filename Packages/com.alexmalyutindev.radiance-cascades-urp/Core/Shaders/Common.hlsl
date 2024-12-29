@@ -112,7 +112,7 @@ static float4 DirectionFirstRayZ = float4(-2.0f, -1.0f, 1.0f, 2.0f);
 float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
 {
     float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.125f; // 1/8
-    float angleX = (angleId.x + 0.5f) * deltaAngle;
+    float angleX = (angleId.x + 0.5f + angleId.y * 0.25f) * deltaAngle;
 
     // TODO: Fix directionWS.z, wrong scaling
     float3 directionWS = float3(0.0f, lerp(-0.6f, 0.6f, angleId.y * 0.33334f), 0.0f);
