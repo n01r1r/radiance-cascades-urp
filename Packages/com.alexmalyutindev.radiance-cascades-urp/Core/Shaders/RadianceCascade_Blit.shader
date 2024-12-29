@@ -297,7 +297,7 @@ Shader "Hidden/RadianceCascade/Blit"
                 input.texcoord = (input.texcoord * _BlitTexture_TexelSize.zw + 1.0f) / (_BlitTexture_TexelSize.zw - 2.0f);
                 float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
 
-                // uv += _BlitTexture_TexelSize.xy * 0.5f;
+                uv += _BlitTexture_TexelSize.xy * 0.5f;
                 float2 horizontalOffset = float2(1.0f / 8.0f, 0.0f);
                 float2 verticalOffset = float2(0.0f, 1.0f / 8.0f);
 
@@ -380,7 +380,7 @@ Shader "Hidden/RadianceCascade/Blit"
             {
                 float2 uv = input.texcoord;
                 float4 color = 0;
-                float4 offset = 0.5f * float4(1.0f, 1.0f, -1.0f, -1.0f) * _BlitTexture_TexelSize.xyxy;
+                float4 offset = 0.64f * float4(1.0f, 1.0f, -1.0f, -1.0f) * _BlitTexture_TexelSize.xyxy;
                 color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.xy, 0);
                 color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.xw, 0);
                 color += SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv + offset.zy, 0);

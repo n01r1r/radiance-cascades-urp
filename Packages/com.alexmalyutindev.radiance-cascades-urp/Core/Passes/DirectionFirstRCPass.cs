@@ -11,6 +11,7 @@ namespace AlexMalyutinDev.RadianceCascades
         private readonly RCDirectionalFirstCS _compute;
         private RTHandle _cascade0;
         private RTHandle _intermediateBuffer;
+        private RTHandle _intermediateBuffer2;
         private Material _blitMaterial;
 
         public DirectionFirstRCPass(RadianceCascadeResources resources)
@@ -38,6 +39,10 @@ namespace AlexMalyutinDev.RadianceCascades
                 sRGB = false,
             };
             RenderingUtils.ReAllocateIfNeeded(ref _intermediateBuffer, desc, name: "IntermediateTarget");
+ 
+            // desc.width *= 2;
+            // desc.height *= 2;
+            // RenderingUtils.ReAllocateIfNeeded(ref _intermediateBuffer2, desc, name: "IntermediateTarget2");
 
             var renderer = renderingData.cameraData.renderer;
 

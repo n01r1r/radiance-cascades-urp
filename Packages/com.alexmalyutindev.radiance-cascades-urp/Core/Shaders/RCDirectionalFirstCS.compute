@@ -194,10 +194,10 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         {
             color.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, ray.xy, 0);
 
-            float3 normalWS = SAMPLE_TEXTURE2D_LOD(_NormalsTexture, sampler_LinearClamp, ray.xy, 0).xyz;
-            occlusion = max(0, dot(directionWS, normalWS));
+            // float3 normalWS = SAMPLE_TEXTURE2D_LOD(_NormalsTexture, sampler_LinearClamp, ray.xy, 0).xyz;
+            // occlusion = max(0, dot(directionWS, normalWS));
 
-            color.a = occlusion; // 0.0f;
+            color.a = 0.0f; // occlusion;
             break;
         }
     }
@@ -252,8 +252,9 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     float2 baseUV = id.xy * _CascadeBufferSize.zw * float2(1.0f, pow(2.0f, _LowerCascadeLevel));
     float2 localUV = frac(baseUV * float2(_LowerCascadeAnglesCount, 4.0f)) / float2(_LowerCascadeAnglesCount, 4.0f);
 
-    int2 lowerCascadeSize = floor(_CascadeBufferSize.xy * 0.125f * pow(0.5f, _LowerCascadeLevel));
-    int2 upperCascadeSize = lowerCascadeSize * 0.5f;
+    // TODO: Make uniforms
+    const int2 lowerCascadeSize = floor(_CascadeBufferSize.xy * 0.125f * pow(0.5f, _LowerCascadeLevel));
+    const int2 upperCascadeSize = lowerCascadeSize * 0.5f;
 
     localUV = saturate(localUV);
     bool border = any(localUV == 0);
@@ -262,17 +263,28 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     int2 lowerCascadeCoords = id.xy + int2(0, _LowerCascadeBottomCoord);
 
     int2 upperCascadeCoords = id.xy * 0.5f;
-    float2 bilinearWeight = frac(id.xy * 0.5f) + 0.25f;
-
     int2 localCoords = upperCascadeCoords % (lowerCascadeSize + 1);
+
+    float2 bilinearWeight = frac(id.xy * 0.5f) + 0.25f;
+    // NOTE: Clamp weight to the border prope.
+    bilinearWeight = localCoords > lowerCascadeSize - 1 ? float2(1.0f, 1.0f) : bilinearWeight;
+    bilinearWeight = localCoords < 1 ? float2(0.0f, 0.0f) : bilinearWeight;
+    
     localCoords = clamp(localCoords, 1, lowerCascadeSize - 1);
     upperCascadeCoords = floor(upperCascadeCoords / (lowerCascadeSize + 1)) * (lowerCascadeSize + 1) * int2(2, 1) + localCoords;
-
     upperCascadeCoords += int2(0, _UpperCascadeBottomCoord);
+
+#if LOAD_UPPER_CASCADE
     float4 upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
     upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
     upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
     upperRadiance *= 0.5f;
+#else
+    float4 upperRadiance = SampleUpperCascade((upperCascadeCoords + bilinearWeight) * _CascadeBufferSize.zw);
+    upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
+    upperRadiance += SampleUpperCascade((upperCascadeCoords + bilinearWeight) * _CascadeBufferSize.zw);
+    upperRadiance *= 0.5f;
+#endif
 
     // MERGE
     float4 radiance = _LowerCascade[lowerCascadeCoords];
