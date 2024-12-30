@@ -1,4 +1,4 @@
-public enum RenderType
+public enum RenderingType
 {
     None = 0,
     DirectionalFirst2d = 1,

@@ -60,7 +60,7 @@ MonoBehaviour:
   m_Name: RadianceCascadeVolume
   m_EditorClassIdentifier: 
   active: 1
-  RenderType:
+  RenderingType:
     m_OverrideState: 1
     m_Value: 1
 --- !u!114 &11400000
