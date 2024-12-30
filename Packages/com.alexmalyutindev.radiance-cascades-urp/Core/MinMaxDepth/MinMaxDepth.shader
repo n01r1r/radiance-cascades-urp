@@ -21,7 +21,7 @@ Shader "Hidden/MinMaxDepth"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             Texture2D<float> _BlitTexture;
             float4 _BlitTexture_TexelSize;
-            float2 _Resolution;
+            float2 InputResolution;
             int _InputMipLevel;
 
             struct Attributes
@@ -49,7 +49,7 @@ Shader "Hidden/MinMaxDepth"
 
             float2 Fragment(Varyings input) : SV_TARGET
             {
-                int2 coord = input.uv * (_Resolution - 1);
+                int2 coord = input.uv * (InputResolution - 1);
 
                 float a = LOAD_TEXTURE2D_LOD(_BlitTexture, coord, _InputMipLevel);
                 float b = LOAD_TEXTURE2D_LOD(_BlitTexture, coord + int2(1, 0), _InputMipLevel);

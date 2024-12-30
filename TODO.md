@@ -2,7 +2,8 @@ TODO:
 - [x] MinMaxDepth(mips) Buffer - for ray tracing optimization
 - [ ] BlurredColor(mips) Buffer - for ray tracing sampling on upper cascades
 - [ ] Blurred Variance Depth RG:(depth, depth^2) for screen space shadows
-- [ ] Render cascade from the highest to lowest and merge n with n+1 cascade in one compute call. 
+- [ ] Render cascade from the highest to lowest and merge n with n+1 cascade in one compute call.
+- [ ] Make special shader to sample Radiance in forward pass. 
 
 
 Pipeline:

@@ -1,7 +1,6 @@
 using AlexMalyutinDev.RadianceCascades;
-using AlexMalyutinDev.RadianceCascades.HiZDepth;
 using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
-using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 public class RadianceCascadesFeature : ScriptableRendererFeature
@@ -10,15 +9,11 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
 
     public bool showDebugView;
 
-    [SerializeField]
-    private RenderType _renderType;
-
     private RC2dPass _rc2dPass;
     private RadianceCascades3dPass _radianceCascadesPass3d;
     private DirectionFirstRCPass _directionFirstRcPass;
     private VoxelizationPass _voxelizationPass;
 
-    private HiZDepthPass _hiZDepthPass;
     private MinMaxDepthPass _minMaxDepthPass;
 
     private RadianceCascadesRenderingData _radianceCascadesRenderingData;
@@ -41,15 +36,10 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
             renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
         };
 
-        _hiZDepthPass = new HiZDepthPass(Resources.HiZDepthMaterial, null)
-        {
-            renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
-        };
         _minMaxDepthPass = new MinMaxDepthPass(Resources.MinMaxDepthMaterial)
         {
             renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
         };
-
         _directionFirstRcPass = new DirectionFirstRCPass(Resources)
         {
             renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights,
@@ -62,20 +52,26 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
         {
             return;
         }
-        
-        renderer.EnqueuePass(_minMaxDepthPass);
 
-        if (_renderType == RenderType._2D)
+        var volume = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
+        var renderType = volume.RenderType.value;
+        if (!volume.active || renderType == RenderType.None)
+        {
+            return;
+        }
+
+        if (renderType == RenderType.Simple2d)
         {
             renderer.EnqueuePass(_rc2dPass);
         }
-        else if (_renderType == RenderType._3D)
+        else if (renderType == RenderType.HemisphereProbes3d)
         {
             renderer.EnqueuePass(_voxelizationPass);
             renderer.EnqueuePass(_radianceCascadesPass3d);
         }
-        else if (_renderType == RenderType._2DDirectionalFirst)
+        else if (renderType == RenderType.DirectionalFirst2d)
         {
+            renderer.EnqueuePass(_minMaxDepthPass);
             renderer.EnqueuePass(_directionFirstRcPass);
         }
     }
@@ -85,14 +81,6 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
         _rc2dPass?.Dispose();
         _radianceCascadesPass3d?.Dispose();
         _voxelizationPass?.Dispose();
-        _hiZDepthPass?.Dispose();
         _minMaxDepthPass?.Dispose();
-    }
-
-    private enum RenderType
-    {
-        _2D,
-        _3D,
-        _2DDirectionalFirst
     }
 }
