@@ -6,6 +6,7 @@ namespace AlexMalyutinDev.RadianceCascades
     public class RadianceCascadesRenderingData
     {
         public RTHandle SceneVolume;
+        public RTHandle MinMaxDepth;
         public Matrix4x4 WorldToVolume;
     }
 }
