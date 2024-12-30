@@ -1,5 +1,6 @@
 using AlexMalyutinDev.RadianceCascades;
 using AlexMalyutinDev.RadianceCascades.HiZDepth;
+using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -16,7 +17,9 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
     private RadianceCascades3dPass _radianceCascadesPass3d;
     private DirectionFirstRCPass _directionFirstRcPass;
     private VoxelizationPass _voxelizationPass;
+
     private HiZDepthPass _hiZDepthPass;
+    private MinMaxDepthPass _minMaxDepthPass;
 
     private RadianceCascadesRenderingData _radianceCascadesRenderingData;
 
@@ -42,6 +45,10 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
         {
             renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
         };
+        _minMaxDepthPass = new MinMaxDepthPass(Resources.MinMaxDepthMaterial)
+        {
+            renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
+        };
 
         _directionFirstRcPass = new DirectionFirstRCPass(Resources)
         {
@@ -56,7 +63,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
             return;
         }
         
-        renderer.EnqueuePass(_hiZDepthPass);
+        renderer.EnqueuePass(_minMaxDepthPass);
 
         if (_renderType == RenderType._2D)
         {
@@ -79,6 +86,7 @@ public class RadianceCascadesFeature : ScriptableRendererFeature
         _radianceCascadesPass3d?.Dispose();
         _voxelizationPass?.Dispose();
         _hiZDepthPass?.Dispose();
+        _minMaxDepthPass?.Dispose();
     }
 
     private enum RenderType

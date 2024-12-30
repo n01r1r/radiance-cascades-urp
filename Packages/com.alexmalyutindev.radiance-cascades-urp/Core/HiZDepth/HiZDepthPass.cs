@@ -77,6 +77,7 @@ namespace AlexMalyutinDev.RadianceCascades.HiZDepth
                 
                 cmd.SetGlobalTexture("_InputDepth", _hiZDepth);
                 
+                // TODO: Rework as MinMaxDepth Buffer.
                 for (int i = 0; i < _hiZDepth.rt.mipmapCount - 1; i++)
                 {
                     width >>= 1;

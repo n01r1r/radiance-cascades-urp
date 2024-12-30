@@ -15,5 +15,6 @@ namespace AlexMalyutinDev.RadianceCascades
 
         [Space]
         public Material HiZDepthMaterial;
+        public Material MinMaxDepthMaterial;
     }
 }
