@@ -20,3 +20,4 @@ MonoBehaviour:
   Voxelizator: {fileID: 4800000, guid: f81d2afa1f3c4f1a811764cc8be4c7f3, type: 3}
   VoxelizatorCS: {fileID: 7200000, guid: d8e7f3312278467d82cd5d52eec2da3e, type: 3}
   HiZDepthMaterial: {fileID: 2100000, guid: f9ad96d503fd346ea9d90be74860e99f, type: 2}
+  MinMaxDepthMaterial: {fileID: 2100000, guid: dc93bb78952b544efa5cdf111388f3aa, type: 2}

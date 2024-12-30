@@ -1,90 +1,88 @@
-using AlexMalyutinDev.RadianceCascades;
-using AlexMalyutinDev.RadianceCascades.HiZDepth;
-using UnityEngine;
+using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-public class RadianceCascadesFeature : ScriptableRendererFeature
+namespace AlexMalyutinDev.RadianceCascades
 {
-    public RadianceCascadeResources Resources;
-
-    public bool showDebugView;
-
-    [SerializeField]
-    private RenderType _renderType;
-
-    private RC2dPass _rc2dPass;
-    private RadianceCascades3dPass _radianceCascadesPass3d;
-    private DirectionFirstRCPass _directionFirstRcPass;
-    private VoxelizationPass _voxelizationPass;
-    private HiZDepthPass _hiZDepthPass;
-
-    private RadianceCascadesRenderingData _radianceCascadesRenderingData;
-
-    public override void Create()
+    public class RadianceCascadesFeature : ScriptableRendererFeature
     {
-        _radianceCascadesRenderingData = new RadianceCascadesRenderingData();
+        public RadianceCascadeResources Resources;
 
-        _rc2dPass = new RC2dPass(Resources, showDebugView)
-        {
-            renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
-        };
+        public bool showDebugView;
 
-        _voxelizationPass = new VoxelizationPass(Resources, _radianceCascadesRenderingData)
-        {
-            renderPassEvent = RenderPassEvent.AfterRenderingShadows,
-        };
-        _radianceCascadesPass3d = new RadianceCascades3dPass(Resources, _radianceCascadesRenderingData)
-        {
-            renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
-        };
+        private RC2dPass _rc2dPass;
+        private RadianceCascades3dPass _radianceCascadesPass3d;
+        private DirectionFirstRCPass _directionFirstRcPass;
+        private VoxelizationPass _voxelizationPass;
 
-        _hiZDepthPass = new HiZDepthPass(Resources.HiZDepthMaterial, null)
-        {
-            renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
-        };
+        private MinMaxDepthPass _minMaxDepthPass;
 
-        _directionFirstRcPass = new DirectionFirstRCPass(Resources)
-        {
-            renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights,
-        };
-    }
+        private RadianceCascadesRenderingData _radianceCascadesRenderingData;
 
-    public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
-    {
-        if (renderingData.cameraData.isPreviewCamera)
+        public override void Create()
         {
-            return;
+            _radianceCascadesRenderingData = new RadianceCascadesRenderingData();
+
+            _rc2dPass = new RC2dPass(Resources, showDebugView)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
+            };
+
+            _voxelizationPass = new VoxelizationPass(Resources, _radianceCascadesRenderingData)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingShadows,
+            };
+            _radianceCascadesPass3d = new RadianceCascades3dPass(Resources, _radianceCascadesRenderingData)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
+            };
+
+            _minMaxDepthPass = new MinMaxDepthPass(Resources.MinMaxDepthMaterial)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
+            };
+            _directionFirstRcPass = new DirectionFirstRCPass(Resources)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights,
+            };
         }
-        
-        renderer.EnqueuePass(_hiZDepthPass);
 
-        if (_renderType == RenderType._2D)
+        public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            renderer.EnqueuePass(_rc2dPass);
-        }
-        else if (_renderType == RenderType._3D)
-        {
-            renderer.EnqueuePass(_voxelizationPass);
-            renderer.EnqueuePass(_radianceCascadesPass3d);
-        }
-        else if (_renderType == RenderType._2DDirectionalFirst)
-        {
-            renderer.EnqueuePass(_directionFirstRcPass);
-        }
-    }
+            if (renderingData.cameraData.isPreviewCamera)
+            {
+                return;
+            }
 
-    protected override void Dispose(bool disposing)
-    {
-        _rc2dPass?.Dispose();
-        _radianceCascadesPass3d?.Dispose();
-        _voxelizationPass?.Dispose();
-        _hiZDepthPass?.Dispose();
-    }
+            var volume = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
+            var renderType = volume.RenderingType.value;
+            if (!volume.active || renderType == RenderingType.None)
+            {
+                return;
+            }
 
-    private enum RenderType
-    {
-        _2D,
-        _3D,
-        _2DDirectionalFirst
+            if (renderType == RenderingType.Simple2d)
+            {
+                renderer.EnqueuePass(_rc2dPass);
+            }
+            else if (renderType == RenderingType.HemisphereProbes3d)
+            {
+                renderer.EnqueuePass(_voxelizationPass);
+                renderer.EnqueuePass(_radianceCascadesPass3d);
+            }
+            else if (renderType == RenderingType.DirectionalFirst2d)
+            {
+                renderer.EnqueuePass(_minMaxDepthPass);
+                renderer.EnqueuePass(_directionFirstRcPass);
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            _rc2dPass?.Dispose();
+            _radianceCascadesPass3d?.Dispose();
+            _voxelizationPass?.Dispose();
+            _minMaxDepthPass?.Dispose();
+        }
     }
 }
