@@ -309,13 +309,14 @@ Shader "Hidden/RadianceCascade/Blit"
                     {
                         float3 direction = GetRay_DirectionFirst(float2(x, y), 0);
                         float NdotL = dot(direction, normalWS);
-                        
-                        color += SAMPLE_TEXTURE2D_LOD(
+
+                        float4 radiance = SAMPLE_TEXTURE2D_LOD(
                             _BlitTexture,
                             sampler_LinearClamp,
                             uv + horizontalOffset * x - verticalOffset * y,
                             0
-                        ) * max(0, NdotL);
+                        );
+                        color += radiance * max(0, NdotL);
                     }
                 }
 

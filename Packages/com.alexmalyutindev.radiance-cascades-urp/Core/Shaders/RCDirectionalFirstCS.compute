@@ -151,18 +151,19 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     int2 range = Ranges[cascadeLevel];
     // range = CalculateRange(cascadeLevel);
 
-    float rayScale = 0.06f;
+    float rayScale = 0.16f;
     float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
-    float3 rayEndWS = rayOriginWS + directionWS * rayScale * range.y;
+    float3 rayEndWS = probeCenterWS + directionWS * rayScale * range.y;
 
     float3 rayOriginVS = TransformWorldToView(rayOriginWS);
     float3 rayEndVS = TransformWorldToView(rayEndWS);
+    // rayEndVS = rayOriginVS + directionWS * rayScale * (range.y - range.x);
 
-    float3 rayOriginCS = TransformWorldToScreenSpace(rayOriginWS);
-    float3 rayEndCS = TransformWorldToScreenSpace(rayEndWS);
+    float3 rayOriginCS = TransformViewToScreenSpace(rayOriginVS);
+    float3 rayEndCS = TransformViewToScreenSpace(rayEndVS);
 
     float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.5f;
-    stepsCount = min(stepsCount, 100); // NOTE: Oversampling prevention.
+    stepsCount = min(stepsCount, 200); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
     float4 color = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -183,7 +184,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         // than ray out of camera.
         float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
 
-        bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 0.25f);
+        bool test = linearDepth < -rayVS.z; // && linearDepth > -(rayVS.z + 2.25f);
 
         // TODO: Compare depth for 4 depth rays.
         // TODO: Add ray length dependency.
@@ -203,7 +204,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     }
 
     // color.rg += probeCenterUV * 0.5f;
-    // color.rgb += lerp(float3(1, 0, 0), float3(0, 1, 0), (angleId.x + angleId.y) % 2) * 0.5;
+    // color.rgb += lerp(float3(1, 0, 0), float3(0, 1, 0), (angleId.x + angleId.y) % 2) * 0.1;
     // color.b += angleX * INV_TWO_PI * 0.5f;
 
     _OutCascade[coords] = color;
@@ -241,6 +242,8 @@ float4 LoadUpperCascadeBilinear(int2 coords, float2 weights)
     return lerp(e, f, weights.y);
 }
 
+#define LOAD_UPPER_CASCADE
+
 [numthreads(8,8,1)]
 void MergeCascade(uint3 id : SV_DispatchThreadID)
 {
@@ -274,7 +277,7 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     upperCascadeCoords = floor(upperCascadeCoords / (lowerCascadeSize + 1)) * (lowerCascadeSize + 1) * int2(2, 1) + localCoords;
     upperCascadeCoords += int2(0, _UpperCascadeBottomCoord);
 
-#if LOAD_UPPER_CASCADE
+#ifdef LOAD_UPPER_CASCADE
     float4 upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
     upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
     upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
@@ -288,6 +291,7 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
 
     // MERGE
     float4 radiance = _LowerCascade[lowerCascadeCoords];
+    // float4 radiance = SAMPLE_TEXTURE2D_LOD(_UpperCascade, sampler_LinearClamp, (lowerCascadeCoords + 0.5f) * _CascadeBufferSize.zw, 0);
     radiance.rgb += upperRadiance.rgb * radiance.a;
     radiance.a *= upperRadiance.a;
 

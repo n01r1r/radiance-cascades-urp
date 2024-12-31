@@ -15,6 +15,7 @@ Input:
 - MinMaxDepth Buffer
 - VarianceDepth Buffer
 - Environment CubeMap
+
 Rendering:
 - Render last cascade
 - Render N cascade + merge N+1 into N
