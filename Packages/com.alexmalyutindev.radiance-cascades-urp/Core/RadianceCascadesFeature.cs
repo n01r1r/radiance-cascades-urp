@@ -37,11 +37,11 @@ namespace AlexMalyutinDev.RadianceCascades
                 renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
             };
 
-            _minMaxDepthPass = new MinMaxDepthPass(Resources.MinMaxDepthMaterial)
+            _minMaxDepthPass = new MinMaxDepthPass(Resources.MinMaxDepthMaterial, _radianceCascadesRenderingData)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
             };
-            _directionFirstRcPass = new DirectionFirstRCPass(Resources)
+            _directionFirstRcPass = new DirectionFirstRCPass(Resources, _radianceCascadesRenderingData)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights,
             };

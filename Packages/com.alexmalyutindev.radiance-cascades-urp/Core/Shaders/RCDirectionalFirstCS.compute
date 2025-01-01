@@ -3,7 +3,10 @@
 
 #include "Common.hlsl"
 
-float _ProbeSize;
+// Input
+Texture2D<float2> _MinMaxDepth;
+
+// Output
 RWTexture2D<float4> _OutCascade;
 
 // Cascade Layout
@@ -131,7 +134,12 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     probeCenterUV = floor(probeCenterUV * probesCount) / probesCount;
 
     // TODO: Use Hi-Z Buffer.
-    float probeDepth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, probeCenterUV, 0);
+    float probeDepth = SAMPLE_TEXTURE2D_LOD(
+        _MinMaxDepth,
+        sampler_PointClamp,
+        probeCenterUV,
+        cascadeLevel + 1
+    ).y;
 
     if (probeDepth == UNITY_RAW_FAR_CLIP_VALUE)
     {
@@ -177,7 +185,13 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
         if (any(ray.xy < 0 || 1 < ray.xy)) break;
 
         // TODO: Use Hi-Z Buffer.
-        float depth = SAMPLE_DEPTH_TEXTURE_LOD(_DepthTexture, sampler_PointClamp, ray.xy, 0);
+        float depth = SAMPLE_TEXTURE2D_LOD(
+            _MinMaxDepth,
+            sampler_PointClamp,
+            ray.xy,
+            0
+        ).y;
+
         // TODO: Compare depth in VS.
         // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
         // I need to compensate perspective distortion. Rays shot in camera direction will be smaller

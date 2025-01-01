@@ -13,13 +13,18 @@ namespace AlexMalyutinDev.RadianceCascades
         private RTHandle _intermediateBuffer;
         private RTHandle _intermediateBuffer2;
         private Material _blitMaterial;
+        private RadianceCascadesRenderingData _renderingData;
 
-        public DirectionFirstRCPass(RadianceCascadeResources resources)
+        public DirectionFirstRCPass(
+            RadianceCascadeResources resources,
+            RadianceCascadesRenderingData renderingData
+        )
         {
             profilingSampler = new ProfilingSampler("RadianceCascades.DirectionFirst");
             _compute = new RCDirectionalFirstCS(resources.RadianceCascadesDirectionalFirstCS);
             // TODO: Make proper C# wrapper for Blit/Combine shader!
             _blitMaterial = resources.BlitMaterial;
+            _renderingData = renderingData;
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
@@ -59,6 +64,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     colorBuffer,
                     depthBuffer,
                     renderer.GetGBuffer(2),
+                    _renderingData.MinMaxDepth,
                     ref _cascade0
                 );
 
