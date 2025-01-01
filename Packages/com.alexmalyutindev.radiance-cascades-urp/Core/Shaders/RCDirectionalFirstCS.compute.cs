@@ -53,11 +53,12 @@ namespace AlexMalyutinDev.RadianceCascades
 
             cmd.SetComputeTextureParam(_compute, _renderKernel, ShaderIds.OutCascade, target);
 
+            _compute.GetKernelThreadGroupSizes(_renderKernel, out var groupSizeX, out var groupSizeY, out _);
             cmd.DispatchCompute(
                 _compute,
                 _renderKernel,
-                targetRT.width / 8,
-                targetRT.height / 8, // TODO: Spawn 4 times less threads for depth rays.
+                targetRT.width / (int) groupSizeX,
+                targetRT.height / (int) groupSizeY, // TODO: Spawn 4 times less threads for depth rays.
                 1
             );
 
@@ -100,11 +101,13 @@ namespace AlexMalyutinDev.RadianceCascades
                 cmd.SetComputeFloatParam(_compute, "_UpperCascadeAnglesCount", lowerCascadeAngleCount * 2);
 
                 cmd.SetComputeIntParam(_compute, ShaderIds.LowerCascadeLevel, lowerCascadeLevelId + 1);
+                
+                _compute.GetKernelThreadGroupSizes(_mergeKernel, out var x, out var y, out _);
                 cmd.DispatchCompute(
                     _compute,
                     _mergeKernel,
-                    targetRT.width / 8,
-                    targetRT.height / (8 * (2 << lowerCascadeLevelId)),
+                    targetRT.width / (int) x,
+                    targetRT.height / ((int) y * (2 << lowerCascadeLevelId)),
                     1
                 );
             }

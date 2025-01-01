@@ -75,7 +75,7 @@ float3 TransformViewToScreenSpace(float3 positionVS)
     return positionCS.xyz;
 }
 
-[numthreads(8,8,1)]
+[numthreads(8, 4, 1)]
 void RenderCascade(uint3 id : SV_DispatchThreadID)
 {
     uint2 coords = id.xy;
@@ -159,7 +159,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     int2 range = Ranges[cascadeLevel];
     // range = CalculateRange(cascadeLevel);
 
-    float rayScale = 0.16f;
+    float rayScale = 0.2f;
     float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
     float3 rayEndWS = probeCenterWS + directionWS * rayScale * range.y;
 
