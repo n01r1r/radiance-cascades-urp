@@ -162,7 +162,7 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     float3 rayOriginCS = TransformViewToScreenSpace(rayOriginVS);
     float3 rayEndCS = TransformViewToScreenSpace(rayEndVS);
 
-    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.5f;
+    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.25f;
     stepsCount = min(stepsCount, 200); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
@@ -242,7 +242,8 @@ float4 LoadUpperCascadeBilinear(int2 coords, float2 weights)
     return lerp(e, f, weights.y);
 }
 
-#define LOAD_UPPER_CASCADE
+#define _LOAD_UPPER_CASCADE
+#define _FOUR_RAYS_MERGE
 
 [numthreads(8,8,1)]
 void MergeCascade(uint3 id : SV_DispatchThreadID)
@@ -277,11 +278,32 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
     upperCascadeCoords = floor(upperCascadeCoords / (lowerCascadeSize + 1)) * (lowerCascadeSize + 1) * int2(2, 1) + localCoords;
     upperCascadeCoords += int2(0, _UpperCascadeBottomCoord);
 
-#ifdef LOAD_UPPER_CASCADE
-    float4 upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
-    upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
-    upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
-    upperRadiance *= 0.5f;
+#ifdef _LOAD_UPPER_CASCADE
+    float4 upperRadiance = 0.0f;
+    int2 offset = int2((upperCascadeSize.x + 1) * 2, 0);
+
+    #ifdef _FOUR_RAYS_MERGE
+    const float2 weights = float2(0.7f, 0.3f) * 0.5f;
+
+    // Main
+    upperRadiance += weights.x * LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperRadiance += weights.x * LoadUpperCascadeBilinear(upperCascadeCoords + offset, bilinearWeight);
+
+    // Secondary
+    upperRadiance += weights.y * LoadUpperCascadeBilinear(
+        (upperCascadeCoords - offset + int2(_CascadeBufferSize.x, 0)) % int2(_CascadeBufferSize.xy),
+        bilinearWeight
+    );
+    upperRadiance += weights.y * LoadUpperCascadeBilinear(
+        (upperCascadeCoords + offset * 2) % int2(_CascadeBufferSize.xy),
+        bilinearWeight
+    );
+
+    #else
+    upperRadiance += 0.5f * LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperRadiance += 0.5f * LoadUpperCascadeBilinear(upperCascadeCoords + offset, bilinearWeight);
+    #endif
+
 #else
     float4 upperRadiance = SampleUpperCascade((upperCascadeCoords + bilinearWeight) * _CascadeBufferSize.zw);
     upperCascadeCoords += int2(upperCascadeSize.x + 1, 0) * 2;
