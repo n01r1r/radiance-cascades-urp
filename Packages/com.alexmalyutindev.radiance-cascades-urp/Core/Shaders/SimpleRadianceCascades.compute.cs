@@ -3,13 +3,13 @@ using UnityEngine.Rendering;
 
 namespace AlexMalyutinDev.RadianceCascades
 {
-    public class RadianceCascadeCS
+    public class SimpleRadianceCascadesCS
     {
         private readonly ComputeShader _compute;
         private readonly int _mergeKernel;
         private readonly int _renderKernel;
 
-        public RadianceCascadeCS(ComputeShader compute)
+        public SimpleRadianceCascadesCS(ComputeShader compute)
         {
             _compute = compute;
             _mergeKernel = _compute.FindKernel("MergeCascades");

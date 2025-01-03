@@ -61,16 +61,16 @@ namespace AlexMalyutinDev.RadianceCascades
                 return;
             }
 
-            if (renderType == RenderingType.Simple2d)
+            if (renderType == RenderingType.Simple2dProbes)
             {
                 renderer.EnqueuePass(_rc2dPass);
             }
-            else if (renderType == RenderingType.HemisphereProbes3d)
+            else if (renderType == RenderingType.CubeMapProbes)
             {
                 renderer.EnqueuePass(_voxelizationPass);
                 renderer.EnqueuePass(_radianceCascadesPass3d);
             }
-            else if (renderType == RenderingType.DirectionalFirst2d)
+            else if (renderType == RenderingType.DirectionFirstProbes)
             {
                 renderer.EnqueuePass(_minMaxDepthPass);
                 renderer.EnqueuePass(_directionFirstRcPass);

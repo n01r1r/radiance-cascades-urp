@@ -8,7 +8,7 @@ namespace AlexMalyutinDev.RadianceCascades
 {
     public class DirectionFirstRCPass : ScriptableRenderPass, IDisposable
     {
-        private readonly RCDirectionalFirstCS _compute;
+        private readonly RadianceCascadesDirectionFirstCS _compute;
         private RTHandle _cascade0;
         private RTHandle _intermediateBuffer;
         private RTHandle _intermediateBuffer2;
@@ -21,7 +21,7 @@ namespace AlexMalyutinDev.RadianceCascades
         )
         {
             profilingSampler = new ProfilingSampler("RadianceCascades.DirectionFirst");
-            _compute = new RCDirectionalFirstCS(resources.RadianceCascadesDirectionalFirstCS);
+            _compute = new RadianceCascadesDirectionFirstCS(resources.RadianceCascadesDirectionalFirstCS);
             // TODO: Make proper C# wrapper for Blit/Combine shader!
             _blitMaterial = resources.BlitMaterial;
             _renderingData = renderingData;
