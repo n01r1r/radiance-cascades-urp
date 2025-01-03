@@ -77,7 +77,8 @@ namespace AlexMalyutinDev.RadianceCascades
                     _renderingData.MinMaxDepth,
                     ref _cascade0
                 );
-                _compute.Merge(cmd, ref _cascade0);
+
+                // _compute.Merge(cmd, ref _cascade0);
 
                 cmd.BeginSample("RadianceCascade.Combine");
                 {

@@ -31,7 +31,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 cameraTextureDescriptor.height >> 1
             )
             {
-                colorFormat = RenderTextureFormat.RG32,
+                colorFormat = RenderTextureFormat.RGFloat,
                 depthStencilFormat = GraphicsFormat.None,
                 useMipMap = true,
                 autoGenerateMips = false,
