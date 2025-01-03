@@ -54,6 +54,17 @@ static const int2 Ranges3[] =
     int2(28, 42),
 };
 
+
+static const int2 Ranges4[] =
+{
+    int2(0, 4),
+    int2(4, 16),
+    int2(16, 64),
+    int2(64, 256),
+    int2(256, 1024),
+    int2(1024, 2048),
+};
+
 static const int IntLog2[] = {
     1, 2, 4, 8, 16, 32,
 };
@@ -343,6 +354,8 @@ int2 _ProbesCount;
 [numthreads(8, 4, 1)]
 void RenderMerge(uint3 id : SV_DispatchThreadID)
 {
+    const float RayScale = 0.02f;
+
     int2 coords = int2(id.xy);
     int2 targetCoords = int2(id.xy);
     targetCoords.y += _ProbesCount.y * 4;
@@ -352,18 +365,22 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    if (any(fmod(coords, _ProbesCount) == 0 || (coords + 1) % _ProbesCount == 0))
+    if (
+        _CascadeLevel == 0 &&
+        any(fmod(coords, _ProbesCount) == 0 || (coords + 1) % _ProbesCount == 0)
+    )
     {
         // NOTE: Borders
-        _OutCascade[targetCoords] = float4(0.0f, 0.0f, 0.2f * _CascadeLevel, 1.0f);
-        _OutCascade[targetCoords] = float4(0.0f, 0.0f, 0.0f, 1.0f);
-        return;
+        // _OutCascade[targetCoords] = float4(0.0f, 0.0f, 0.2f * _CascadeLevel, 1.0f);
+        // _OutCascade[targetCoords] = float4(0.0f, 0.0f, 1.0f, 1.0f);
+        // return;
     }
 
+    // BUG: Fix probe probeCenterUV!
     int2 probeCenterCoord = coords % _ProbesCount;
-    float2 probeCenterUV = float2(probeCenterCoord) / _ProbesCount;
+    float2 probeCenterUV = float2(probeCenterCoord + 1.0f) / (_ProbesCount + 1.0f);
 
-    float cascadeLevel = _CascadeLevel;
+    const float cascadeLevel = _CascadeLevel;
 
     float2 angleId;
     const float cascadeFactor = pow(2.0f, cascadeLevel);
@@ -391,14 +408,14 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
 
     float3 directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
 
-    float rayScale = 0.1f;
-    int2 range = Ranges[cascadeLevel];
-    float3 rayOriginWS = probeCenterWS + directionWS * rayScale * range.x;
-    float3 rayEndWS = probeCenterWS + directionWS * rayScale * range.y;
+    int2 range = Ranges4[cascadeLevel];
+
+    float3 rayOriginWS = probeCenterWS + directionWS * RayScale * range.x;
+    float3 rayEndWS = probeCenterWS + directionWS * RayScale * range.y;
 
     float3 rayOriginVS = TransformWorldToView(rayOriginWS);
     float3 rayEndVS = TransformWorldToView(rayEndWS);
-    // rayEndVS = rayOriginVS + directionWS * rayScale * (range.y - range.x);
+    // rayEndVS = rayOriginVS + directionWS * RayScale * (range.y - range.x);
 
     float3 rayOriginCS = TransformViewToScreenSpace(rayOriginVS);
     float3 rayEndCS = TransformViewToScreenSpace(rayEndVS);
@@ -449,6 +466,8 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
         }
     }
 
+
+    // MERGE!
     if (cascadeLevel > 4)
     {
         // radiance.rg += probeCenterUV;
@@ -460,22 +479,28 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
     int2 upperCascadeSize = _ProbesCount * 0.5f;
 
     int2 upperCascadeCoords = floor(coords * 0.5f);
-    float2 bilinearWeight = frac(coords * 0.5f) + 0.25f;
-    
-    int2 localCoords = fmod(upperCascadeCoords, upperCascadeSize);
 
-    bilinearWeight = localCoords > upperCascadeSize - 1 ? float2(1.0f, 1.0f) : bilinearWeight;
-    bilinearWeight = localCoords < 1 ? float2(0.0f, 0.0f) : bilinearWeight;
-    
-    localCoords = clamp(localCoords, 1, upperCascadeSize - 1);
-    upperCascadeCoords = (upperCascadeCoords / upperCascadeSize) * upperCascadeSize;
+    // DUG: Wrong local coords! And wrong bilinearWeights!
+    // 02----12----22----32----42----42
+    // | D01 |     | E11 |     | F21 |
+    // 02----12----22----32----42----42
+    // |     |     |     |     |     |
+    // 01----11----21----31----41----41
+    // | A00 |     | B10 |     | C20 |
+    // 00----10----20----30----40----40
+    // TODO: Find upperProbeId
+    int2 lowerProbeId = coords % lowerCascadeSize;
+    int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
+    float2 bilinearWeight = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
+
+    upperCascadeCoords = upperCascadeCoords / upperCascadeSize * upperCascadeSize;
     upperCascadeCoords.x *= 2;
-    upperCascadeCoords += localCoords;
+    upperCascadeCoords += upperProbeBottomLeftId;
     upperCascadeCoords.y += upperCascadeSize.y * 4;
 
     int2 offset = int2(upperCascadeSize.x, 0);
     float4 upperRadiance = 0.0f;
-    #ifdef DEBUG
+    #if 0
     upperRadiance = _UpperCascade[upperCascadeCoords];
     upperRadiance += _UpperCascade[upperCascadeCoords + offset];
     upperRadiance *= 0.5f;
@@ -486,7 +511,7 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
     int2 c = upperCascadeCoords - offset;
     c.x += (c.x < 0) * _CascadeBufferSize.x;
     upperRadiance += LoadUpperCascadeBilinear(c, bilinearWeight);
-
+    
     c = upperCascadeCoords + 2 * offset;
     c.x -= (c.x > _CascadeBufferSize.x) * _CascadeBufferSize.x;
     upperRadiance += LoadUpperCascadeBilinear(c, bilinearWeight);
@@ -498,5 +523,9 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
     radiance.a *= upperRadiance.a;
 
     _OutCascade[targetCoords] = radiance;
+    // _OutCascade[targetCoords] = float4(bilinearWeight, 0, 1);
+    // _OutCascade[targetCoords] = float4(upperCascadeCoords / 2048.0f, 0, 1);
+    // _OutCascade[targetCoords] = float4(upperProbeBottomLeftId * 0.25f, 0, 1);
+    // _OutCascade[targetCoords] = float4(bilinearWeight, 0, 1);
     // _OutCascade[targetCoords] = float4(localCoords / float2(upperCascadeSize), 0, 1);
 }

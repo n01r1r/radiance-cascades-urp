@@ -116,7 +116,7 @@ float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
     float angleX = (angleId.x + 0.5f) * deltaAngle;
 
     // TODO: Fix directionWS.z, wrong scaling
-    float3 directionWS = float3(0.0f, lerp(-0.3f, 0.3f, angleId.y * 0.33334f), 0.0f);
+    float3 directionWS = float3(0.0f, lerp(-0.5f, 0.5f, angleId.y * 0.33334f), 0.0f);
     // float3 directionWS = float3(0.0f, DirectionFirstRayZ[angleId.y], 0.0f);
     sincos(angleX, directionWS.z, directionWS.x);
     return normalize(directionWS);

@@ -31,8 +31,8 @@ namespace AlexMalyutinDev.RadianceCascades
         {
             // 512 => 512 / 8 = 64 probes in row
             // TODO: Allocate texture with dimension (screen.width, screen.height) * 2 
-            int cascadeWidth = 2048; // cameraTextureDescriptor.width * 2;
-            int cascadeHeight = 1024; // cameraTextureDescriptor.height * 2;
+            int cascadeWidth = 1024 * 2; // cameraTextureDescriptor.width; // 2048; // 
+            int cascadeHeight = 512 * 2; // cameraTextureDescriptor.height; // 1024; // 
             var desc = new RenderTextureDescriptor(cascadeWidth, cascadeHeight)
             {
                 colorFormat = RenderTextureFormat.ARGBFloat,
@@ -59,16 +59,6 @@ namespace AlexMalyutinDev.RadianceCascades
 
             using (new ProfilingScope(cmd, profilingSampler))
             {
-                // _compute.Render(
-                //     cmd,
-                //     colorBuffer,
-                //     depthBuffer,
-                //     renderer.GetGBuffer(2),
-                //     _renderingData.MinMaxDepth,
-                //     ref _cascade0
-                // );
-
-                // TODO: Fix merge
                 _compute.RenderMerge(
                     cmd,
                     colorBuffer,
@@ -77,8 +67,6 @@ namespace AlexMalyutinDev.RadianceCascades
                     _renderingData.MinMaxDepth,
                     ref _cascade0
                 );
-
-                // _compute.Merge(cmd, ref _cascade0);
 
                 cmd.BeginSample("RadianceCascade.Combine");
                 {
