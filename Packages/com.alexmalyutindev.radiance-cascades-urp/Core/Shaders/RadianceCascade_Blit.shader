@@ -294,7 +294,7 @@ Shader "Hidden/RadianceCascade/Blit"
                 
                 // TODO: Bilateral Upsampling.
                 // TODO: Fix uv, to trim cascade padding.
-                input.texcoord = (input.texcoord * _BlitTexture_TexelSize.zw + 1.0f) / (_BlitTexture_TexelSize.zw - 2.0f);
+                input.texcoord = (input.texcoord * _BlitTexture_TexelSize.zw + 1.0f) / (_BlitTexture_TexelSize.zw + 1.0f);
                 float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
 
                 uv += _BlitTexture_TexelSize.xy * 0.5f;

@@ -59,7 +59,17 @@ namespace AlexMalyutinDev.RadianceCascades
 
             using (new ProfilingScope(cmd, profilingSampler))
             {
-                _compute.Render(
+                // _compute.Render(
+                //     cmd,
+                //     colorBuffer,
+                //     depthBuffer,
+                //     renderer.GetGBuffer(2),
+                //     _renderingData.MinMaxDepth,
+                //     ref _cascade0
+                // );
+
+                // TODO: Fix merge
+                _compute.RenderMerge(
                     cmd,
                     colorBuffer,
                     depthBuffer,
@@ -67,7 +77,6 @@ namespace AlexMalyutinDev.RadianceCascades
                     _renderingData.MinMaxDepth,
                     ref _cascade0
                 );
-
                 _compute.Merge(cmd, ref _cascade0);
 
                 cmd.BeginSample("RadianceCascade.Combine");
