@@ -8,7 +8,7 @@ public class RC2dPass : ScriptableRenderPass, IDisposable
 {
     private const int CascadesCount = 5;
     private static readonly string[] CascadeNames = GenNames("_Cascade", CascadesCount);
-    private static Vector2Int[] Resolutions =
+    private static readonly Vector2Int[] Resolutions =
     {
         new(32 * 16, 32 * 9), // 256x144 probes0
         new(32 * 10, 32 * 6), // 160x96 probes0
@@ -19,8 +19,7 @@ public class RC2dPass : ScriptableRenderPass, IDisposable
 
     private readonly ProfilingSampler _profilingSampler;
     private readonly Material _blit;
-    private readonly ComputeShader _radianceCascadesCs;
-    private readonly RadianceCascadeCS _radianceCascadeCs;
+    private readonly SimpleRadianceCascadesCS _radianceCascadeCs;
     private readonly bool _showDebugPreview;
 
     private readonly RTHandle[] _cascades = new RTHandle[CascadesCount];
@@ -32,7 +31,7 @@ public class RC2dPass : ScriptableRenderPass, IDisposable
     )
     {
         _profilingSampler = new ProfilingSampler(nameof(RC2dPass));
-        _radianceCascadeCs = new RadianceCascadeCS(resources.RadianceCascades);
+        _radianceCascadeCs = new SimpleRadianceCascadesCS(resources.RadianceCascades);
         _showDebugPreview = showDebugView;
         _blit = resources.BlitMaterial;
 

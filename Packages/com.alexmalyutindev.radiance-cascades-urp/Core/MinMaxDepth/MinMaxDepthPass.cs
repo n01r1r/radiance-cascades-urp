@@ -11,12 +11,16 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
         private static readonly int InputMipLevel = Shader.PropertyToID("_InputMipLevel");
         private static readonly int InputResolution = Shader.PropertyToID("_InputResolution");
         private readonly Material _material;
-        private RTHandle _minMaxDepth;
+        private readonly RadianceCascadesRenderingData _renderingData;
 
-        public MinMaxDepthPass(Material minMaxDepthMaterial)
+        public MinMaxDepthPass(
+            Material minMaxDepthMaterial,
+            RadianceCascadesRenderingData radianceCascadesRenderingData
+        )
         {
             profilingSampler = new ProfilingSampler(nameof(MinMaxDepthPass));
             _material = minMaxDepthMaterial;
+            _renderingData = radianceCascadesRenderingData;
         }
 
 
@@ -33,7 +37,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 autoGenerateMips = false,
             };
             RenderingUtils.ReAllocateIfNeeded(
-                ref _minMaxDepth,
+                ref _renderingData.MinMaxDepth,
                 desc,
                 FilterMode.Point,
                 TextureWrapMode.Clamp,
@@ -52,19 +56,19 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 int width = depthBuffer.rt.width;
                 int height = depthBuffer.rt.height;
     
-                cmd.SetRenderTarget(_minMaxDepth, 0, CubemapFace.Unknown);
+                cmd.SetRenderTarget(_renderingData.MinMaxDepth, 0, CubemapFace.Unknown);
                 cmd.SetGlobalInteger(InputMipLevel, 0);
                 cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
                 BlitUtils.BlitTexture(cmd, depthBuffer, _material, 0);
 
-                for (int mipLevel = 1; mipLevel < _minMaxDepth.rt.mipmapCount; mipLevel++)
+                for (int mipLevel = 1; mipLevel < _renderingData.MinMaxDepth.rt.mipmapCount; mipLevel++)
                 {
                     width >>= 1;
                     height >>= 1;
                     cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
                     cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
-                    cmd.SetRenderTarget(_minMaxDepth, mipLevel, CubemapFace.Unknown);
-                    BlitUtils.BlitTexture(cmd, _minMaxDepth, _material, 0);
+                    cmd.SetRenderTarget(_renderingData.MinMaxDepth, mipLevel, CubemapFace.Unknown);
+                    BlitUtils.BlitTexture(cmd, _renderingData.MinMaxDepth, _material, 0);
                 }
 
                 context.ExecuteCommandBuffer(cmd);
@@ -78,7 +82,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
 
         public void Dispose()
         {
-            _minMaxDepth?.Release();
+            _renderingData.MinMaxDepth?.Release();
         }
     }
 }

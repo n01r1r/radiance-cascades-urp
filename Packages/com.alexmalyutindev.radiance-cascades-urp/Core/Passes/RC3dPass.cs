@@ -14,7 +14,7 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
 
     private readonly RadianceCascadesRenderingData _radianceCascadesRenderingData;
     private readonly Material _blitMaterial;
-    private readonly RadianceCascade3dCS _radianceCascade;
+    private readonly RadianceCascadeCubeMapCS _radianceCascade;
 
     private readonly RTHandle[] _cascades = new RTHandle[CascadesCount];
 
@@ -24,7 +24,7 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
     )
     {
         _profilingSampler = new ProfilingSampler(nameof(RC2dPass));
-        _radianceCascade = new RadianceCascade3dCS(resources.RadianceCascades3d);
+        _radianceCascade = new RadianceCascadeCubeMapCS(resources.RadianceCascades3d);
         _radianceCascadesRenderingData = radianceCascadesRenderingData;
         _blitMaterial = resources.BlitMaterial;
     }
