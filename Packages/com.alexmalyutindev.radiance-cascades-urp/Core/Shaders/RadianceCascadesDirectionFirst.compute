@@ -6,6 +6,7 @@
 
 // Input
 Texture2D<float2> _MinMaxDepth;
+Texture2D<float> _SmoothedDepth;
 
 // Output
 RWTexture2D<float4> _OutCascade;
@@ -146,12 +147,12 @@ void RenderCascade(uint3 id : SV_DispatchThreadID)
     probeCenterUV = floor(probeCenterUV * probesCount) / probesCount;
 
     // TODO: Use Hi-Z Buffer.
-    float probeDepth = SAMPLE_TEXTURE2D_LOD(
-        _MinMaxDepth,
-        sampler_PointClamp,
+    float probeDepth = 1.0f - SAMPLE_TEXTURE2D_LOD(
+        _SmoothedDepth,
+        sampler_LinearClamp,
         probeCenterUV,
         cascadeLevel + 1
-    ).y;
+    );
 
     if (probeDepth == UNITY_RAW_FAR_CLIP_VALUE)
     {
@@ -348,8 +349,78 @@ void MergeCascade(uint3 id : SV_DispatchThreadID)
 }
 
 // #define DEBUG
+#define USE_SMOOTHED_DEPTH
+
 int _CascadeLevel;
 int2 _ProbesCount;
+
+inline float GetProbeDepth(float2 uv, int cascadeLevel)
+{
+    // TODO: Use SmoothedDepth (convert depth to [0..1] from NEAR plane and blur it,
+    // this will give depth that less or equal than original for smooth probes placing)
+
+    #ifdef USE_SMOOTHED_DEPTH
+    float probeDepth = 1.0f - SAMPLE_TEXTURE2D_LOD(
+        _SmoothedDepth,
+        sampler_LinearClamp,
+        uv,
+        cascadeLevel + 0 // TODO: Calculate MipLevel depend on buffer resolution
+    ).x;
+    #else
+    float probeDepth = SAMPLE_TEXTURE2D_LOD(
+        _MinMaxDepth,
+        sampler_LinearClamp,
+        uv,
+        cascadeLevel + 2
+    ).y;
+    #endif
+
+    return probeDepth;
+}
+
+inline float4 LoadUpperRadiance(int2 coords)
+{
+    const int2 lowerCascadeSize = _ProbesCount;
+    const int2 upperCascadeSize = _ProbesCount * 0.5f;
+
+    int2 upperCascadeCoords = floor(coords * 0.5f);
+
+    // DUG: Wrong local coords! And wrong bilinearWeights!
+    // 02----12----22----32----42----42
+    // | D01 |     | E11 |     | F21 |
+    // 02----12----22----32----42----42
+    // |     |     |     |     |     |
+    // 01----11----21----31----41----41
+    // | A00 |     | B10 |     | C20 |
+    // 00----10----20----30----40----40
+    // TODO: Find upperProbeId
+    int2 lowerProbeId = coords % lowerCascadeSize;
+    int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
+    float2 bilinearWeight = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
+
+    upperCascadeCoords = upperCascadeCoords / upperCascadeSize * upperCascadeSize;
+    upperCascadeCoords.x *= 2;
+    upperCascadeCoords += upperProbeBottomLeftId;
+    upperCascadeCoords.y += upperCascadeSize.y * 4;
+
+    int2 offset = int2(upperCascadeSize.x, 0);
+    
+    float4 upperRadiance = 0.0f;
+
+    // NOTE: Sample 2 main rays
+    upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords + offset, bilinearWeight);
+
+    // NOTE: Sample 2 secondary rays
+    int2 secondaryUpperCascadeCoords = upperCascadeCoords - offset;
+    secondaryUpperCascadeCoords.x += (secondaryUpperCascadeCoords.x < 0) * _CascadeBufferSize.x;
+    upperRadiance += LoadUpperCascadeBilinear(secondaryUpperCascadeCoords, bilinearWeight);
+    secondaryUpperCascadeCoords = upperCascadeCoords + 2 * offset;
+    secondaryUpperCascadeCoords.x -= (secondaryUpperCascadeCoords.x > _CascadeBufferSize.x) * _CascadeBufferSize.x;
+    upperRadiance += LoadUpperCascadeBilinear(secondaryUpperCascadeCoords, bilinearWeight);
+
+    return upperRadiance * 0.25f;
+}
 
 [numthreads(8, 4, 1)]
 void RenderMerge(uint3 id : SV_DispatchThreadID)
@@ -389,13 +460,7 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
     angleId.x = floor(coords.x * projRays * _CascadeBufferSize.z);
     angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
 
-    float probeDepth = SAMPLE_TEXTURE2D_LOD(
-        _MinMaxDepth,
-        sampler_PointClamp,
-        probeCenterUV,
-        0
-    ).y;
-
+    float probeDepth = GetProbeDepth(probeCenterUV, cascadeLevel);
     if (probeDepth == UNITY_RAW_FAR_CLIP_VALUE)
     {
         _OutCascade[coords] = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -431,18 +496,21 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
         // TODO: Use DDA for ray marching.
         float3 rayVS = lerp(rayOriginVS, rayEndVS, i / (stepsCount - 1.0f));
         float3 ray = TransformViewToScreenSpace(rayVS);
-        if (any(ray.xy <= 0 || 1 <= ray.xy))
+        if (any(ray.xy < 0 || 1 < ray.xy))
         {
             break;
         }
 
         // TODO: Use Hi-Z Buffer.
-        float depth = SAMPLE_TEXTURE2D_LOD(
+        float2 minMaxDepth = SAMPLE_TEXTURE2D_LOD(
             _MinMaxDepth,
             sampler_PointClamp,
             ray.xy,
-            0
-        ).y;
+            cascadeLevel
+        ).xy;
+
+        // TODO: Use MinMax compare on lower mips and go up if collide.
+        float depth = minMaxDepth.y;
 
         // TODO: Compare depth in VS.
         // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
@@ -467,65 +535,17 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
     }
 
 
-    // MERGE!
     if (cascadeLevel > 4)
     {
-        // radiance.rg += probeCenterUV;
         _OutCascade[targetCoords] = radiance;
         return;
     }
 
-    int2 lowerCascadeSize = _ProbesCount;
-    int2 upperCascadeSize = _ProbesCount * 0.5f;
-
-    int2 upperCascadeCoords = floor(coords * 0.5f);
-
-    // DUG: Wrong local coords! And wrong bilinearWeights!
-    // 02----12----22----32----42----42
-    // | D01 |     | E11 |     | F21 |
-    // 02----12----22----32----42----42
-    // |     |     |     |     |     |
-    // 01----11----21----31----41----41
-    // | A00 |     | B10 |     | C20 |
-    // 00----10----20----30----40----40
-    // TODO: Find upperProbeId
-    int2 lowerProbeId = coords % lowerCascadeSize;
-    int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
-    float2 bilinearWeight = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
-
-    upperCascadeCoords = upperCascadeCoords / upperCascadeSize * upperCascadeSize;
-    upperCascadeCoords.x *= 2;
-    upperCascadeCoords += upperProbeBottomLeftId;
-    upperCascadeCoords.y += upperCascadeSize.y * 4;
-
-    int2 offset = int2(upperCascadeSize.x, 0);
-    float4 upperRadiance = 0.0f;
-    #if 0
-    upperRadiance = _UpperCascade[upperCascadeCoords];
-    upperRadiance += _UpperCascade[upperCascadeCoords + offset];
-    upperRadiance *= 0.5f;
-    #else
-    upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
-    upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords + offset, bilinearWeight);
-
-    int2 c = upperCascadeCoords - offset;
-    c.x += (c.x < 0) * _CascadeBufferSize.x;
-    upperRadiance += LoadUpperCascadeBilinear(c, bilinearWeight);
-    
-    c = upperCascadeCoords + 2 * offset;
-    c.x -= (c.x > _CascadeBufferSize.x) * _CascadeBufferSize.x;
-    upperRadiance += LoadUpperCascadeBilinear(c, bilinearWeight);
-
-    upperRadiance *= 0.25f;
-    #endif
+    // MERGE!
+    float4 upperRadiance = LoadUpperRadiance(coords);
 
     radiance.rgb += upperRadiance.rgb * radiance.a;
     radiance.a *= upperRadiance.a;
 
     _OutCascade[targetCoords] = radiance;
-    // _OutCascade[targetCoords] = float4(bilinearWeight, 0, 1);
-    // _OutCascade[targetCoords] = float4(upperCascadeCoords / 2048.0f, 0, 1);
-    // _OutCascade[targetCoords] = float4(upperProbeBottomLeftId * 0.25f, 0, 1);
-    // _OutCascade[targetCoords] = float4(bilinearWeight, 0, 1);
-    // _OutCascade[targetCoords] = float4(localCoords / float2(upperCascadeSize), 0, 1);
 }

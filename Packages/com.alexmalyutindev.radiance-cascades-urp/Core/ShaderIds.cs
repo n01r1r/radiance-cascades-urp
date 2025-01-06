@@ -22,6 +22,7 @@ namespace AlexMalyutinDev.RadianceCascades
         public static readonly int DepthTexture = Shader.PropertyToID("_DepthTexture");
         public static readonly int NormalsTexture = Shader.PropertyToID("_NormalsTexture");
         public static readonly int MinMaxDepth = Shader.PropertyToID("_MinMaxDepth");
+        public static readonly int SmoothedDepth = Shader.PropertyToID("_SmoothedDepth");
 
         public static readonly int SceneVolume = Shader.PropertyToID("_SceneVolume");
 

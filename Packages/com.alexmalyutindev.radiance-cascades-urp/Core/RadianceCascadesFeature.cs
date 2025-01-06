@@ -1,4 +1,5 @@
 using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
+using AlexMalyutinDev.RadianceCascades.SmoothedDepth;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -16,6 +17,7 @@ namespace AlexMalyutinDev.RadianceCascades
         private VoxelizationPass _voxelizationPass;
 
         private MinMaxDepthPass _minMaxDepthPass;
+        private SmoothedDepthPass _smoothedDepthPass;
 
         private RadianceCascadesRenderingData _radianceCascadesRenderingData;
 
@@ -38,6 +40,10 @@ namespace AlexMalyutinDev.RadianceCascades
             };
 
             _minMaxDepthPass = new MinMaxDepthPass(Resources.MinMaxDepthMaterial, _radianceCascadesRenderingData)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
+            };
+            _smoothedDepthPass = new SmoothedDepthPass(Resources.SmoothedDepthMaterial, _radianceCascadesRenderingData)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
             };
@@ -73,6 +79,7 @@ namespace AlexMalyutinDev.RadianceCascades
             else if (renderType == RenderingType.DirectionFirstProbes)
             {
                 renderer.EnqueuePass(_minMaxDepthPass);
+                renderer.EnqueuePass(_smoothedDepthPass);
                 renderer.EnqueuePass(_directionFirstRcPass);
             }
         }

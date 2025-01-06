@@ -393,8 +393,8 @@ Shader "Hidden/RadianceCascade/Blit"
                 // color *= (depth0 > depth1);
 
                 half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
-                half4 gbuffer3 = SAMPLE_TEXTURE2D_LOD(_GBuffer3, sampler_PointClamp, input.texcoord, 0);
-                gbuffer0 += gbuffer3;
+                // half4 gbuffer3 = SAMPLE_TEXTURE2D_LOD(_GBuffer3, sampler_PointClamp, input.texcoord, 0);
+                // gbuffer0 += gbuffer3;
                 return color * gbuffer0;
             }
             ENDHLSL

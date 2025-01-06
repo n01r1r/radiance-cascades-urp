@@ -8,5 +8,7 @@ namespace AlexMalyutinDev.RadianceCascades
         public RTHandle SceneVolume;
         public RTHandle MinMaxDepth;
         public Matrix4x4 WorldToVolume;
+
+        public RTHandle SmoothedDepth;
     }
 }

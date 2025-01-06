@@ -12,8 +12,9 @@ namespace AlexMalyutinDev.RadianceCascades
         private RTHandle _cascade0;
         private RTHandle _intermediateBuffer;
         private RTHandle _intermediateBuffer2;
-        private Material _blitMaterial;
-        private RadianceCascadesRenderingData _renderingData;
+
+        private readonly Material _blitMaterial;
+        private readonly RadianceCascadesRenderingData _renderingData;
 
         public DirectionFirstRCPass(
             RadianceCascadeResources resources,
@@ -65,6 +66,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     depthBuffer,
                     renderer.GetGBuffer(2),
                     _renderingData.MinMaxDepth,
+                    _renderingData.SmoothedDepth,
                     ref _cascade0
                 );
 
