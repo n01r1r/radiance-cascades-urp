@@ -11,7 +11,7 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
         private static readonly int InputResolution = Shader.PropertyToID("_InputResolution");
 
         private readonly Material _material;
-        private RadianceCascadesRenderingData _radianceCascadesRenderingData;
+        private readonly RadianceCascadesRenderingData _radianceCascadesRenderingData;
 
         public SmoothedDepthPass(
             Material material,

@@ -112,12 +112,15 @@ static float4 DirectionFirstRayZ = float4(-2.0f, -1.0f, 1.0f, 2.0f);
 float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
 {
     float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.125f; // 1/8
-    // float angleX = (angleId.x + 0.5f + angleId.y * 0.25f) * deltaAngle;
-    float angleX = (angleId.x + 0.5f) * deltaAngle;
+    // Azimuth
+    float phi = (angleId.x + 0.5f) * deltaAngle;
+    // Polar
+    float theta = lerp(0.4f, 0.6f, angleId.y * 0.33334f) * PI;
 
-    // TODO: Fix directionWS.z, wrong scaling
-    float3 directionWS = float3(0.0f, lerp(-0.5f, 0.5f, angleId.y * 0.33334f), 0.0f);
-    // float3 directionWS = float3(0.0f, DirectionFirstRayZ[angleId.y], 0.0f);
-    sincos(angleX, directionWS.z, directionWS.x);
-    return normalize(directionWS);
+    float2 sinCosPhi;
+    float2 sinCosTheta;
+    sincos(phi, sinCosPhi.x, sinCosPhi.y);
+    sincos(theta, sinCosTheta.x, sinCosTheta.y);
+
+    return float3(sinCosTheta.x * sinCosPhi.y, sinCosTheta.y, sinCosTheta.x * sinCosPhi.x);
 }

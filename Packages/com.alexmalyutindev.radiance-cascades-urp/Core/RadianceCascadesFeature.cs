@@ -55,7 +55,7 @@ namespace AlexMalyutinDev.RadianceCascades
                 _radianceCascadesRenderingData
             )
             {
-                renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
+                renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
             };
             _directionFirstRcPass = new DirectionFirstRCPass(Resources, _radianceCascadesRenderingData)
             {

@@ -18,7 +18,6 @@ namespace AlexMalyutinDev.RadianceCascades
             CommandBuffer cmd,
             RTHandle color,
             RTHandle depth,
-            RTHandle normals,
             RTHandle minMaxDepth,
             RTHandle smoothedDepth,
             RTHandle blurredColor,
@@ -41,7 +40,6 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeVectorParam(_compute, ShaderIds.ColorTextureTexelSize, colorTexelSize);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.ColorTexture, color);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.DepthTexture, depth);
-            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.NormalsTexture, normals);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.SmoothedDepth, smoothedDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.BlurredColor, blurredColor);

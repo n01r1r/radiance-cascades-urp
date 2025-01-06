@@ -30,8 +30,8 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
                 cameraTextureDescriptor.height >> 1
             )
             {
-                colorFormat = RenderTextureFormat.ARGB32,
-                sRGB = true,
+                colorFormat = cameraTextureDescriptor.colorFormat,
+                sRGB = cameraTextureDescriptor.sRGB,
                 depthStencilFormat = GraphicsFormat.None,
                 useMipMap = true,
                 autoGenerateMips = false,

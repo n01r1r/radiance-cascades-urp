@@ -113,6 +113,7 @@ inline float GetProbeDepth(float2 uv, int cascadeLevel)
 
 inline float4 LoadUpperRadiance(int2 coords)
 {
+    // TODO: Take into account probe positions to select more proper angled probes.
     const int2 lowerCascadeSize = _ProbesCount;
     const int2 upperCascadeSize = _ProbesCount * 0.5f;
 
@@ -226,7 +227,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     float3 rayEndCS = TransformViewToScreenSpace(rayEndVS);
 
 
-    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw) * 0.25f;
+    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw);
+    stepsCount *= pow(0.5f, cascadeLevel + 2);
     stepsCount = min(stepsCount, 200); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
@@ -246,7 +248,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             _MinMaxDepth,
             sampler_PointClamp,
             ray.xy,
-            cascadeLevel
+            cascadeLevel + 2
         ).xy;
 
         // TODO: Use MinMax compare on lower mips and go up if collide.
