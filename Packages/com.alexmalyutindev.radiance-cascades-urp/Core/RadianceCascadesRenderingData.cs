@@ -10,5 +10,6 @@ namespace AlexMalyutinDev.RadianceCascades
         public Matrix4x4 WorldToVolume;
 
         public RTHandle SmoothedDepth;
+        public RTHandle BlurredColorBuffer;
     }
 }

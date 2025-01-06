@@ -14,6 +14,7 @@ int2 _ProbesCount;
 
 Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
+Texture2D<float4> _BlurredColor;
 
 RWTexture2D<float4> _LowerCascade;
 Texture2D<float4> _UpperCascade;
@@ -266,8 +267,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
         if (test)
         {
-            // TODO: Use BlurredColorBuffer!
-            radiance.rgb = SAMPLE_TEXTURE2D_LOD(_ColorTexture, sampler_LinearClamp, ray.xy, 0).rgb;
+            // TODO: Calculate MipLevel depend on resolution!
+            radiance.rgb = SAMPLE_TEXTURE2D_LOD(_BlurredColor, sampler_LinearClamp, ray.xy, cascadeLevel + 2).rgb;
             radiance.a = 0.0f; // occlusion;
             break;
         }

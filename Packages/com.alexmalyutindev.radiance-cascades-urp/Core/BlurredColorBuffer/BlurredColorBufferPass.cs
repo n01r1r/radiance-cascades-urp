@@ -3,22 +3,22 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
+namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
 {
-    public class SmoothedDepthPass : ScriptableRenderPass
+    public class BlurredColorBufferPass : ScriptableRenderPass
     {
         private static readonly int InputMipLevel = Shader.PropertyToID("_InputMipLevel");
         private static readonly int InputResolution = Shader.PropertyToID("_InputResolution");
 
         private readonly Material _material;
-        private RadianceCascadesRenderingData _radianceCascadesRenderingData;
+        private readonly RadianceCascadesRenderingData _radianceCascadesRenderingData;
 
-        public SmoothedDepthPass(
+        public BlurredColorBufferPass(
             Material material,
             RadianceCascadesRenderingData radianceCascadesRenderingData
         )
         {
-            profilingSampler = new ProfilingSampler(nameof(SmoothedDepthPass));
+            profilingSampler = new ProfilingSampler(nameof(BlurredColorBufferPass));
             _material = material;
             _radianceCascadesRenderingData = radianceCascadesRenderingData;
         }
@@ -30,17 +30,18 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
                 cameraTextureDescriptor.height >> 1
             )
             {
-                colorFormat = RenderTextureFormat.RFloat,
+                colorFormat = RenderTextureFormat.ARGB32,
+                sRGB = true,
                 depthStencilFormat = GraphicsFormat.None,
                 useMipMap = true,
                 autoGenerateMips = false,
             };
             RenderingUtils.ReAllocateIfNeeded(
-                ref _radianceCascadesRenderingData.SmoothedDepth,
+                ref _radianceCascadesRenderingData.BlurredColorBuffer,
                 desc,
                 FilterMode.Bilinear,
                 TextureWrapMode.Clamp,
-                name: "SmoothedDepth"
+                name: "BlurredColorBuffer"
             );
         }
 
@@ -51,23 +52,23 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
             var cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, profilingSampler))
             {
-                var depthBuffer = renderingData.cameraData.renderer.cameraDepthTargetHandle;
-                int width = depthBuffer.rt.width;
-                int height = depthBuffer.rt.height;
+                var colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
+                int width = colorBuffer.rt.width;
+                int height = colorBuffer.rt.height;
 
-                cmd.SetRenderTarget(_radianceCascadesRenderingData.SmoothedDepth, 0, CubemapFace.Unknown);
+                cmd.SetRenderTarget(_radianceCascadesRenderingData.BlurredColorBuffer, 0, CubemapFace.Unknown);
                 cmd.SetGlobalInteger(InputMipLevel, 0);
                 cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
-                BlitUtils.BlitTexture(cmd, depthBuffer, _material, 0);
+                BlitUtils.BlitTexture(cmd, colorBuffer, _material, 0);
 
-                for (int mipLevel = 1; mipLevel < _radianceCascadesRenderingData.SmoothedDepth.rt.mipmapCount; mipLevel++)
+                for (int mipLevel = 1; mipLevel < _radianceCascadesRenderingData.BlurredColorBuffer.rt.mipmapCount; mipLevel++)
                 {
                     width >>= 1;
                     height >>= 1;
                     cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
                     cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
-                    cmd.SetRenderTarget(_radianceCascadesRenderingData.SmoothedDepth, mipLevel, CubemapFace.Unknown);
-                    BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.SmoothedDepth, _material, 1);
+                    cmd.SetRenderTarget(_radianceCascadesRenderingData.BlurredColorBuffer, mipLevel, CubemapFace.Unknown);
+                    BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.BlurredColorBuffer, _material, 0);
                 }
 
                 context.ExecuteCommandBuffer(cmd);

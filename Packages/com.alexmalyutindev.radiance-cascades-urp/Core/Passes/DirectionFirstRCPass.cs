@@ -67,6 +67,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     renderer.GetGBuffer(2),
                     _renderingData.MinMaxDepth,
                     _renderingData.SmoothedDepth,
+                    _renderingData.BlurredColorBuffer,
                     ref _cascade0
                 );
 

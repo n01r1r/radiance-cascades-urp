@@ -21,6 +21,7 @@ namespace AlexMalyutinDev.RadianceCascades
             RTHandle normals,
             RTHandle minMaxDepth,
             RTHandle smoothedDepth,
+            RTHandle blurredColor,
             ref RTHandle target
         )
         {
@@ -43,6 +44,7 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.NormalsTexture, normals);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.SmoothedDepth, smoothedDepth);
+            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.BlurredColor, blurredColor);
 
             var targetRT = target.rt;
             var cascadeBufferSize = new Vector4(

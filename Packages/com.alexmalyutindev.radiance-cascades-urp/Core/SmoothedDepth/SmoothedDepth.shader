@@ -58,9 +58,9 @@ Shader "Hidden/SmoothedDepth"
                 #endif
             }
 
-            float2 Fragment(Varyings input) : SV_TARGET
+            float Fragment(Varyings input) : SV_TARGET
             {
-                float4 offset = float4(_BlitTexture_TexelSize.xy, -_BlitTexture_TexelSize.xy) * 0.5f;
+                float4 offset = 1.0f / float4(_InputResolution.xy, -_InputResolution.xy);
 
                 float depth01 = SampleDepth01(input.uv + offset.xy, _InputMipLevel);
                 depth01 += SampleDepth01(input.uv + offset.xw, _InputMipLevel);
@@ -117,7 +117,7 @@ Shader "Hidden/SmoothedDepth"
                 return SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv, lod);
             }
 
-            float2 Fragment(Varyings input) : SV_TARGET
+            float Fragment(Varyings input) : SV_TARGET
             {
                 float4 offset = float4(_BlitTexture_TexelSize.xy, -_BlitTexture_TexelSize.xy) * 0.5f;
 
