@@ -233,6 +233,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     stepsCount = max(2, stepsCount);
 
     float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
+
+    UNITY_LOOP
     for (int i = 0; i < stepsCount; i++)
     {
         // TODO: Use DDA for ray marching.

@@ -7,6 +7,7 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         private static Mesh s_QuadMesh;
         private static readonly int BlitTextureId = Shader.PropertyToID("_BlitTexture");
+        private static MaterialPropertyBlock _props;
 
         public static void Blit(CommandBuffer cmd, Material material, int pass)
         {
@@ -17,9 +18,10 @@ namespace AlexMalyutinDev.RadianceCascades
         public static void BlitTexture(CommandBuffer cmd, Texture texture, Material material, int pass)
         {
             Initialize();
-            var props = new MaterialPropertyBlock();
-            props.SetTexture(BlitTextureId, texture);
-            cmd.DrawMesh(s_QuadMesh, Matrix4x4.identity, material, 0, pass, props);
+            _props ??= new MaterialPropertyBlock();
+            _props.Clear();
+            _props.SetTexture(BlitTextureId, texture);
+            cmd.DrawMesh(s_QuadMesh, Matrix4x4.identity, material, 0, pass, _props);
         }
 
         public static void Initialize()
