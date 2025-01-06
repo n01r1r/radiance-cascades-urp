@@ -359,21 +359,29 @@ inline float GetProbeDepth(float2 uv, int cascadeLevel)
     // TODO: Use SmoothedDepth (convert depth to [0..1] from NEAR plane and blur it,
     // this will give depth that less or equal than original for smooth probes placing)
 
-    #ifdef USE_SMOOTHED_DEPTH
-    float probeDepth = 1.0f - SAMPLE_TEXTURE2D_LOD(
+#ifdef USE_SMOOTHED_DEPTH
+
+    float probeDepth = SAMPLE_TEXTURE2D_LOD(
         _SmoothedDepth,
         sampler_LinearClamp,
         uv,
         cascadeLevel + 0 // TODO: Calculate MipLevel depend on buffer resolution
     ).x;
-    #else
+
+    #if UNITY_REVERSED_Z
+    probeDepth = 1.0f - probeDepth;
+    #endif
+
+#else
+    
     float probeDepth = SAMPLE_TEXTURE2D_LOD(
         _MinMaxDepth,
         sampler_LinearClamp,
         uv,
         cascadeLevel + 2
     ).y;
-    #endif
+    
+#endif
 
     return probeDepth;
 }
@@ -385,7 +393,6 @@ inline float4 LoadUpperRadiance(int2 coords)
 
     int2 upperCascadeCoords = floor(coords * 0.5f);
 
-    // DUG: Wrong local coords! And wrong bilinearWeights!
     // 02----12----22----32----42----42
     // | D01 |     | E11 |     | F21 |
     // 02----12----22----32----42----42
@@ -393,7 +400,7 @@ inline float4 LoadUpperRadiance(int2 coords)
     // 01----11----21----31----41----41
     // | A00 |     | B10 |     | C20 |
     // 00----10----20----30----40----40
-    // TODO: Find upperProbeId
+
     int2 lowerProbeId = coords % lowerCascadeSize;
     int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
     float2 bilinearWeight = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
@@ -404,11 +411,11 @@ inline float4 LoadUpperRadiance(int2 coords)
     upperCascadeCoords.y += upperCascadeSize.y * 4;
 
     int2 offset = int2(upperCascadeSize.x, 0);
-    
+
     float4 upperRadiance = 0.0f;
 
     // NOTE: Sample 2 main rays
-    upperRadiance = LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
+    upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords, bilinearWeight);
     upperRadiance += LoadUpperCascadeBilinear(upperCascadeCoords + offset, bilinearWeight);
 
     // NOTE: Sample 2 secondary rays
@@ -541,9 +548,7 @@ void RenderMerge(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // MERGE!
     float4 upperRadiance = LoadUpperRadiance(coords);
-
     radiance.rgb += upperRadiance.rgb * radiance.a;
     radiance.a *= upperRadiance.a;
 
