@@ -26,18 +26,18 @@ RWTexture2D<float4> _OutCascade;
 // Rows - depth angled rays
 // Columns - projection angled rays
 // ._______________________________.
-// |   ⬈   |   ⬉   |   ⬋   |   ⬊   |
+// |   ↗   |   ↖   |   ↙   |   ↘   |
 // |_______|_______|_______|_______|
-// |   ⬈   |   ⬉   |   ⬋   |   ⬊   |
+// |   ↗   |   ↖   |   ↙   |   ↘   |
 // |_______|_______|_______|_______|
-// |   ⬈   |   ⬉   |   ⬋   |   ⬊   |
+// |   ↗   |   ↖   |   ↙   |   ↘   |
 // |_______|_______|_______|_______|
-// |   ⬈   |   ⬉   |   ⬋   |   ⬋   |
+// |   ↗   |   ↖   |   ↙   |   ↘   |
 // |_______|_______|_______|_______|
-// |_⬈_|_⬉_|_⬋_|_⬋_|_⬈_|_⬉_|_⬋_|_⬋_|
-// |_⬈_|_⬉_|_⬋_|_⬋_|_⬈_|_⬉_|_⬋_|_⬋_|
-// |_⬈_|_⬉_|_⬋_|_⬋_|_⬈_|_⬉_|_⬋_|_⬋_|
-// |_⬈_|_⬉_|_⬋_|_⬋_|_⬈_|_⬉_|_⬋_|_⬋_|
+// |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
+// |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
+// |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
+// |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
 
 static const int2 Ranges4[] =
 {
@@ -81,9 +81,6 @@ float4 LoadUpperCascadeBilinear(int2 coords, float2 weights)
 
 inline float GetProbeDepth(float2 uv, int cascadeLevel)
 {
-    // TODO: Use SmoothedDepth (convert depth to [0..1] from NEAR plane and blur it,
-    // this will give depth that less or equal than original for smooth probes placing)
-
 #ifdef USE_SMOOTHED_DEPTH
 
     float probeDepth = SAMPLE_TEXTURE2D_LOD(
@@ -245,7 +242,6 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             break;
         }
 
-        // TODO: Use Hi-Z Buffer.
         float2 minMaxDepth = SAMPLE_TEXTURE2D_LOD(
             _MinMaxDepth,
             sampler_PointClamp,
@@ -256,12 +252,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         // TODO: Use MinMax compare on lower mips and go up if collide.
         float depth = minMaxDepth.y;
 
-        // TODO: Compare depth in VS.
-        // To find ray.z in ClipSpace i should transform it in ViewSpace then add needed component
-        // I need to compensate perspective distortion. Rays shot in camera direction will be smaller
-        // than ray out of camera.
         float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
-
         bool test = linearDepth < -rayVS.z; // && linearDepth > -(rayVS.z + 2.25f);
 
         // TODO: Compare depth for 4 depth rays.
