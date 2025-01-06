@@ -294,10 +294,9 @@ Shader "Hidden/RadianceCascade/Blit"
                 
                 // TODO: Bilateral Upsampling.
                 // TODO: Fix uv, to trim cascade padding.
-                input.texcoord = (input.texcoord * _BlitTexture_TexelSize.zw + 1.0f) / (_BlitTexture_TexelSize.zw - 2.0f);
-                float2 uv = (input.texcoord + float2(0.0f, 7.0f)) / 8.0f;
+                float2 uv = (input.texcoord * _BlitTexture_TexelSize.zw + 4.0f) / (_BlitTexture_TexelSize.zw + 8.0f);
+                uv = (uv + float2(0.0f, 7.0f)) / 8.0f;
 
-                uv += _BlitTexture_TexelSize.xy * 0.5f;
                 float2 horizontalOffset = float2(1.0f / 8.0f, 0.0f);
                 float2 verticalOffset = float2(0.0f, 1.0f / 8.0f);
 
@@ -394,8 +393,8 @@ Shader "Hidden/RadianceCascade/Blit"
                 // color *= (depth0 > depth1);
 
                 half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
-                half4 gbuffer3 = SAMPLE_TEXTURE2D_LOD(_GBuffer3, sampler_PointClamp, input.texcoord, 0);
-                gbuffer0 += gbuffer3;
+                // half4 gbuffer3 = SAMPLE_TEXTURE2D_LOD(_GBuffer3, sampler_PointClamp, input.texcoord, 0);
+                // gbuffer0 += gbuffer3;
                 return color * gbuffer0;
             }
             ENDHLSL
