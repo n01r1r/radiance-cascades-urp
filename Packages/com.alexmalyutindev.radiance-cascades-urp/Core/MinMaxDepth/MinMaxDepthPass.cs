@@ -8,6 +8,10 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
 {
     public class MinMaxDepthPass : ScriptableRenderPass, IDisposable
     {
+        private const int MinMaxOriginalDepthPass = 0;
+        private const int MinMaxDepthMipPass = 1;
+        private const int CopyLevelPass = 2;
+
         private static readonly int InputMipLevel = Shader.PropertyToID("_InputMipLevel");
         private static readonly int InputResolution = Shader.PropertyToID("_InputResolution");
         private static readonly int Scale = Shader.PropertyToID("_Scale");
@@ -44,7 +48,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 name: "MinMaxDepth"
             );
 
-            if (SystemInfo.graphicsDeviceType is not GraphicsDeviceType.Metal and GraphicsDeviceType.Vulkan)
+            if (SystemInfo.graphicsDeviceType is  not (GraphicsDeviceType.Metal or GraphicsDeviceType.Vulkan))
             {
                 desc.width >>= 1;
                 desc.height >>= 1;
@@ -74,7 +78,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 cmd.SetGlobalInteger(InputMipLevel, 0);
                 cmd.SetGlobalFloat("_Scale", 1);
                 cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
-                BlitUtils.BlitTexture(cmd, depthBuffer, _material, 0);
+                BlitUtils.BlitTexture(cmd, depthBuffer, _material, MinMaxOriginalDepthPass);
 
                 for (int mipLevel = 1; mipLevel < _renderingData.MinMaxDepth.rt.mipmapCount; mipLevel++)
                 {
@@ -87,7 +91,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                     {
                         cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
                         cmd.SetRenderTarget(_renderingData.MinMaxDepth, mipLevel);
-                        BlitUtils.BlitTexture(cmd, _renderingData.MinMaxDepth, _material, 0);
+                        BlitUtils.BlitTexture(cmd, _renderingData.MinMaxDepth, _material, MinMaxDepthMipPass);
                     }
                     else
                     {
@@ -95,13 +99,13 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                         cmd.EnableScissorRect(new Rect(0, 0, width, height));
                         cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
                         cmd.SetGlobalFloat(Scale, 1 << (mipLevel - 1));
-                        BlitUtils.BlitTexture(cmd, _renderingData.MinMaxDepth, _material, 0);
+                        BlitUtils.BlitTexture(cmd, _renderingData.MinMaxDepth, _material, 1);
                         cmd.DisableScissorRect();
 
                         cmd.SetRenderTarget(_renderingData.MinMaxDepth, mipLevel);
                         cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
                         cmd.SetGlobalVector(InputResolution, new Vector4(width >> 1, height >> 1));
-                        BlitUtils.BlitTexture(cmd, _tempMinMaxDepth, _material, 1);
+                        BlitUtils.BlitTexture(cmd, _tempMinMaxDepth, _material, CopyLevelPass);
                     }
                 }
 

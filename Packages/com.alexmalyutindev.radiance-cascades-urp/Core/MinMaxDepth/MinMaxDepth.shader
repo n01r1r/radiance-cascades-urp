@@ -12,6 +12,26 @@ Shader "Hidden/MinMaxDepth"
 
         Pass
         {
+            Name "DownSampleDepthMinMax2x2_SingleChannel"
+            ColorMask RG
+
+            HLSLPROGRAM
+            #pragma vertex Vertex
+            #pragma fragment Fragment
+
+            #define SINGLE_CHANNEL
+            #include "Common.hlsl"
+
+            float2 Fragment(Varyings input) : SV_TARGET
+            {
+                int2 coord = input.uv * _Scale * (_InputResolution - 1);
+                return LoadDepthMinMax(coord, _InputMipLevel);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
             Name "DownSampleDepthMinMax2x2"
             ColorMask RG
 
@@ -19,49 +39,12 @@ Shader "Hidden/MinMaxDepth"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            Texture2D<float2> _BlitTexture;
-            float4 _BlitTexture_TexelSize;
-            float2 _InputResolution;
-            int _InputMipLevel;
-            float _Scale;
-
-            struct Attributes
-            {
-                float4 positionOS : POSITION;
-                float2 texcoord : TEXCOORD0;
-            };
-
-            struct Varyings
-            {
-                float2 uv : TEXCOORD0;
-                float4 positionCS : SV_POSITION;
-            };
-
-            Varyings Vertex(Attributes input)
-            {
-                Varyings output;
-                output.positionCS = float4(input.positionOS.xy * 2 - 1, 0, 1);
-                output.uv = input.texcoord;
-                #if UNITY_UV_STARTS_AT_TOP
-                output.uv.y = 1 - output.uv.y;
-                #endif
-                return output;
-            }
+            #include "Common.hlsl"
 
             float2 Fragment(Varyings input) : SV_TARGET
             {
                 int2 coord = input.uv * _Scale * (_InputResolution - 1);
-
-                float2 a = LOAD_TEXTURE2D_LOD(_BlitTexture, coord, _InputMipLevel);
-                float2 b = LOAD_TEXTURE2D_LOD(_BlitTexture, coord + int2(1, 0), _InputMipLevel);
-                float2 c = LOAD_TEXTURE2D_LOD(_BlitTexture, coord + int2(0, 1), _InputMipLevel);
-                float2 d = LOAD_TEXTURE2D_LOD(_BlitTexture, coord + int2(1, 1), _InputMipLevel);
-
-                return float2(
-                    min(min(a.x, b.x), min(c.x, d.x)),
-                    max(max(a.y, b.y), max(c.y, d.y))
-                );
+                return LoadDepthMinMax(coord, _InputMipLevel);
             }
             ENDHLSL
         }
@@ -74,35 +57,7 @@ Shader "Hidden/MinMaxDepth"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            Texture2D<float2> _BlitTexture;
-            float4 _BlitTexture_TexelSize;
-            float2 _InputResolution;
-            int _InputMipLevel;
-
-            struct Attributes
-            {
-                float4 positionOS : POSITION;
-                float2 texcoord : TEXCOORD0;
-            };
-
-            struct Varyings
-            {
-                float2 uv : TEXCOORD0;
-                float4 positionCS : SV_POSITION;
-            };
-
-            Varyings Vertex(Attributes input)
-            {
-                Varyings output;
-                output.positionCS = float4(input.positionOS.xy * 2 - 1, 0, 1);
-                output.uv = input.texcoord;
-                #if UNITY_UV_STARTS_AT_TOP
-                output.uv.y = 1 - output.uv.y;
-                #endif
-                return output;
-            }
+            #include "Common.hlsl"
 
             float2 Fragment(Varyings input) : SV_TARGET
             {
