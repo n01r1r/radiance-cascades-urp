@@ -62,6 +62,7 @@ namespace AlexMalyutinDev.RadianceCascades
             {
                 _compute.RenderMerge(
                     cmd,
+                    ref renderingData.cameraData,
                     colorBuffer,
                     depthBuffer,
                     _renderingData.MinMaxDepth,

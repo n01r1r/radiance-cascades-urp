@@ -11,6 +11,8 @@
 // Input
 int _CascadeLevel;
 int2 _ProbesCount;
+float4x4 _WorldToView;
+float4x4 _ViewToHClip;
 
 Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
@@ -57,7 +59,7 @@ float3 TransformWorldToScreenSpace(float3 positionWS)
 
 float3 TransformViewToScreenSpace(float3 positionVS)
 {
-    float4 positionCS = TransformWViewToHClip(positionVS);
+    float4 positionCS = mul(_ViewToHClip, float4(positionVS, 1));
     positionCS.xyz /= positionCS.w;
     positionCS.xy = mad(positionCS.xy, float2(0.5f, -0.5f), float2(0.5f, 0.5f));
     return positionCS.xyz;
@@ -92,14 +94,14 @@ inline float GetProbeDepth(float2 uv, int cascadeLevel)
     #endif
 
 #else
-    
+
     float probeDepth = SAMPLE_TEXTURE2D_LOD(
         _MinMaxDepth,
         sampler_LinearClamp,
         uv,
         cascadeLevel + 1
     ).y;
-    
+
 #endif
 
     return probeDepth;
@@ -202,6 +204,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         return;
     }
 
+    // Raytracing
     float3 probeCenterWS = GetPositionWS(probeCenterUV, probeDepth);
     float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
     probeCenterWS -= viewDirectionWS * 0.2f;
@@ -213,12 +216,12 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     float3 rayOriginWS = probeCenterWS + directionWS * RayScale * range.x;
     float3 rayEndWS = probeCenterWS + directionWS * RayScale * range.y;
 
-    float3 rayOriginVS = TransformWorldToView(rayOriginWS);
-    float3 rayEndVS = TransformWorldToView(rayEndWS);
+    float3 rayOriginVS = mul(_WorldToView, float4(rayOriginWS, 1));
+    float3 rayEndVS = mul(_WorldToView, float4(rayEndWS, 1));
     // rayEndVS = rayOriginVS + directionWS * RayScale * (range.y - range.x);
 
-    float3 rayOriginCS = TransformViewToScreenSpace(rayOriginVS);
-    float3 rayEndCS = TransformViewToScreenSpace(rayEndVS);
+    float3 rayOriginCS = mul(_ViewToHClip, float4(rayOriginVS, 1));
+    float3 rayEndCS = mul(_ViewToHClip, float4(rayEndVS, 1));
 
 
     float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw);
