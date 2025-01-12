@@ -12,6 +12,7 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
 
         private readonly Material _material;
         private readonly RadianceCascadesRenderingData _radianceCascadesRenderingData;
+        private RTHandle _tempBlurBuffer;
 
         public BlurredColorBufferPass(
             Material material,
@@ -43,6 +44,16 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
                 TextureWrapMode.Clamp,
                 name: "BlurredColorBuffer"
             );
+
+            desc.width >>= 1;
+            desc.height >>= 1;
+            RenderingUtils.ReAllocateIfNeeded(
+                ref _tempBlurBuffer,
+                desc,
+                FilterMode.Bilinear,
+                TextureWrapMode.Clamp,
+                name: "BlurredColorBuffer2"
+            );
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -61,14 +72,23 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
                 cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
                 BlitUtils.BlitTexture(cmd, colorBuffer, _material, 0);
 
-                for (int mipLevel = 1; mipLevel < _radianceCascadesRenderingData.BlurredColorBuffer.rt.mipmapCount; mipLevel++)
+                // NOTE: Can't render into MipLevel+1 and read from MipLevel of the same image on DX!
+                // Work around is to render blur in two taps:
+                // horizontal blur into _tempBlurBuffer, then vertical blur into BlurredColorBuffer
+                var mipsCount = _radianceCascadesRenderingData.BlurredColorBuffer.rt.mipmapCount;
+                for (int mipLevel = 1; mipLevel < mipsCount; mipLevel++)
                 {
                     width >>= 1;
                     height >>= 1;
                     cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
+
+                    cmd.SetRenderTarget(_tempBlurBuffer, mipLevel - 1);
                     cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
-                    cmd.SetRenderTarget(_radianceCascadesRenderingData.BlurredColorBuffer, mipLevel, CubemapFace.Unknown);
-                    BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.BlurredColorBuffer, _material, 0);
+                    BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.BlurredColorBuffer, _material, 1);
+
+                    cmd.SetRenderTarget(_radianceCascadesRenderingData.BlurredColorBuffer, mipLevel);
+                    cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
+                    BlitUtils.BlitTexture(cmd, _tempBlurBuffer, _material, 2);
                 }
 
                 context.ExecuteCommandBuffer(cmd);
