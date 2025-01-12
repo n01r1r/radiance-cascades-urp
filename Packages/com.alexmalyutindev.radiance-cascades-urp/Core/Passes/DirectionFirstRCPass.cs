@@ -76,7 +76,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     cmd.SetGlobalTexture(ShaderIds.GBuffer3, renderer.GetGBuffer(3));
                     BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
 
-                    cmd.SetRenderTarget(colorBuffer);
+                    cmd.SetRenderTarget(colorBuffer, depthBuffer);
                     BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
                 }
                 cmd.EndSample("RadianceCascade.Combine");

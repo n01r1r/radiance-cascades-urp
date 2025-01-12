@@ -108,8 +108,6 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
         }
         cmd.EndSample(sampleKey);
 
-        PreviewCascades(cmd, _cascades);
-
         sampleKey = "MergeCascades";
         cmd.BeginSample(sampleKey);
         {
@@ -125,33 +123,11 @@ public class RadianceCascades3dPass : ScriptableRenderPass, IDisposable
         }
         cmd.EndSample(sampleKey);
 
-
         sampleKey = "Combine";
         cmd.BeginSample(sampleKey);
+        cmd.SetRenderTarget(colorTexture, depthTexture);
         Blitter.BlitTexture(cmd, _cascades[0], new Vector4(1f / 2f, 1f / 3f, 0, 0), _blitMaterial, 1);
         cmd.EndSample(sampleKey);
-
-        PreviewCascades(cmd, _cascades, 1.0f);
-    }
-
-    private void PreviewCascades(CommandBuffer cmd, RTHandle[] rtHandles, float offset = 0.0f)
-    {
-        cmd.BeginSample("Preview");
-
-        const float scale = 1f / 8f;
-        for (int i = 0; i < rtHandles.Length; i++)
-        {
-            Blitter.BlitQuad(
-                cmd,
-                rtHandles[i],
-                new Vector4(1, 1f, 0, 0),
-                new Vector4(scale, scale, scale * offset, 1.0f - scale * (i + 1)),
-                0,
-                false
-            );
-        }
-
-        cmd.EndSample("Preview");
     }
 
 
