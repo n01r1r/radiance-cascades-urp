@@ -16,9 +16,6 @@ Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
 Texture2D<float4> _BlurredColor;
 
-RWTexture2D<float4> _LowerCascade;
-Texture2D<float4> _UpperCascade;
-
 // Output
 RWTexture2D<float4> _OutCascade;
 
@@ -68,10 +65,10 @@ float3 TransformViewToScreenSpace(float3 positionVS)
 
 float4 LoadUpperCascadeBilinear(int2 coords, float2 weights)
 {
-    float4 a = _UpperCascade[coords];
-    float4 b = _UpperCascade[coords + int2(1, 0)];
-    float4 c = _UpperCascade[coords + int2(0, 1)];
-    float4 d = _UpperCascade[coords + int2(1, 1)];
+    float4 a = _OutCascade[coords];
+    float4 b = _OutCascade[coords + int2(1, 0)];
+    float4 c = _OutCascade[coords + int2(0, 1)];
+    float4 d = _OutCascade[coords + int2(1, 1)];
 
     float4 e = lerp(a, b, weights.x);
     float4 f = lerp(c, d, weights.x);

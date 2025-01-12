@@ -53,7 +53,6 @@ namespace AlexMalyutinDev.RadianceCascades
             );
             cmd.SetComputeVectorParam(_compute, ShaderIds.CascadeBufferSize, cascadeBufferSize);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.OutCascade, target);
-            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.UpperCascade, target);
 
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)
             {
