@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace AlexMalyutinDev.RadianceCascades
 {
@@ -16,6 +17,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
         public void RenderMerge(
             CommandBuffer cmd,
+            ref CameraData cameraData,
             RTHandle color,
             RTHandle depth,
             RTHandle minMaxDepth,
@@ -53,7 +55,12 @@ namespace AlexMalyutinDev.RadianceCascades
             );
             cmd.SetComputeVectorParam(_compute, ShaderIds.CascadeBufferSize, cascadeBufferSize);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.OutCascade, target);
-            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.UpperCascade, target);
+
+            // var cameraTransform = cameraData.camera.transform;
+            // var rotation = Quaternion.LookRotation(cameraTransform.forward, cameraTransform.up);
+            // cmd.SetComputeMatrixParam(_compute, "_WorldToView", CreateViewMatrix(cameraData.worldSpaceCameraPos, rotation));
+            cmd.SetComputeMatrixParam(_compute, "_WorldToView", cameraData.GetViewMatrix());
+            cmd.SetComputeMatrixParam(_compute, "_ViewToHClip", cameraData.GetGPUProjectionMatrix());
 
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)
             {
@@ -76,6 +83,20 @@ namespace AlexMalyutinDev.RadianceCascades
             }
 
             cmd.EndSample("RadianceCascade.RenderMerge");
+        }
+        
+        public static Matrix4x4 CreateViewMatrix(Vector3 position, Quaternion rotation)
+        {
+            var view = Matrix4x4.TRS(position, rotation, Vector3.one).inverse;
+            if (SystemInfo.usesReversedZBuffer)
+            {
+                view.m20 = -view.m20;
+                view.m21 = -view.m21;
+                view.m22 = -view.m22;
+                view.m23 = -view.m23;
+            }
+
+            return view;
         }
     }
 }
