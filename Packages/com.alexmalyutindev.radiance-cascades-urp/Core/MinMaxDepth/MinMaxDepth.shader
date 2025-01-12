@@ -25,6 +25,7 @@ Shader "Hidden/MinMaxDepth"
             float2 Fragment(Varyings input) : SV_TARGET
             {
                 int2 coord = input.uv * _Scale * (_InputResolution - 1);
+                // coord = floor(input.positionCS.xy) * 2;
                 return LoadDepthMinMax(coord, _InputMipLevel);
             }
             ENDHLSL
@@ -44,6 +45,7 @@ Shader "Hidden/MinMaxDepth"
             float2 Fragment(Varyings input) : SV_TARGET
             {
                 int2 coord = input.uv * _Scale * (_InputResolution - 1);
+                // coord = floor(input.positionCS.xy) * 2;
                 return LoadDepthMinMax(coord, _InputMipLevel);
             }
             ENDHLSL
@@ -61,7 +63,7 @@ Shader "Hidden/MinMaxDepth"
 
             float2 Fragment(Varyings input) : SV_TARGET
             {
-                int2 coord = input.uv * (_InputResolution);
+                int2 coord = input.positionCS.xy;
                 return LOAD_TEXTURE2D_LOD(_BlitTexture, coord, 0).rg;
             }
             ENDHLSL

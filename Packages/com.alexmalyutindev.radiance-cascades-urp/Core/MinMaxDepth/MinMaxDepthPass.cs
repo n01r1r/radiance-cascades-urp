@@ -73,7 +73,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 var depthBuffer = renderingData.cameraData.renderer.cameraDepthTargetHandle;
                 int width = depthBuffer.rt.width;
                 int height = depthBuffer.rt.height;
-
+                
                 cmd.SetRenderTarget(_renderingData.MinMaxDepth, 0, CubemapFace.Unknown);
                 cmd.SetGlobalInteger(InputMipLevel, 0);
                 cmd.SetGlobalFloat("_Scale", 1);
@@ -82,8 +82,8 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
 
                 for (int mipLevel = 1; mipLevel < _renderingData.MinMaxDepth.rt.mipmapCount; mipLevel++)
                 {
-                    width >>= 1;
-                    height >>= 1;
+                    width = Mathf.FloorToInt(width / 2.0f);
+                    height = Mathf.FloorToInt(height / 2.0f);
 
                     cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
 
@@ -95,16 +95,15 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                     }
                     else
                     {
+                        // BUG: Incorrect MinMax values, smth with sample coords.
                         cmd.SetRenderTarget(_tempMinMaxDepth);
                         cmd.EnableScissorRect(new Rect(0, 0, width, height));
                         cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
                         cmd.SetGlobalFloat(Scale, 1 << (mipLevel - 1));
-                        BlitUtils.BlitTexture(cmd, _renderingData.MinMaxDepth, _material, 1);
+                        BlitUtils.BlitTexture(cmd, _renderingData.MinMaxDepth, _material, MinMaxDepthMipPass);
                         cmd.DisableScissorRect();
 
                         cmd.SetRenderTarget(_renderingData.MinMaxDepth, mipLevel);
-                        cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
-                        cmd.SetGlobalVector(InputResolution, new Vector4(width >> 1, height >> 1));
                         BlitUtils.BlitTexture(cmd, _tempMinMaxDepth, _material, CopyLevelPass);
                     }
                 }
