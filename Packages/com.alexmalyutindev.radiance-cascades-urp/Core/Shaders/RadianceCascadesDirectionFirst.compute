@@ -6,7 +6,7 @@
 #define _FOUR_RAYS_MERGE
 
 // #define DEBUG
-#define USE_SMOOTHED_DEPTH
+// #define USE_SMOOTHED_DEPTH
 
 // Input
 int _CascadeLevel;
@@ -100,7 +100,7 @@ inline float GetProbeDepth(float2 uv, int cascadeLevel)
         _MinMaxDepth,
         sampler_LinearClamp,
         uv,
-        cascadeLevel + 2
+        cascadeLevel + 1
     ).y;
     
 #endif
