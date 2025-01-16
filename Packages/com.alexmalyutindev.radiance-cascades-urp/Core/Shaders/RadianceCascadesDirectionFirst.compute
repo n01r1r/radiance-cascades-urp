@@ -38,6 +38,17 @@ RWTexture2D<float4> _OutCascade;
 // |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
 // |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
 
+static const int2 Ranges2[] =
+{
+    int2(0, 1),
+    int2(1, 4),
+    int2(4, 16),
+    int2(16, 64),
+    int2(64, 256),
+    int2(256, 1024),
+    int2(1024, 2048),
+};
+
 static const int2 Ranges4[] =
 {
     int2(0, 4),
@@ -80,7 +91,7 @@ float4 LoadUpperCascadeBilinear(int2 coords, float2 weights)
 
 inline float GetProbeDepth(float2 uv, int cascadeLevel)
 {
-#ifdef USE_SMOOTHED_DEPTH
+    #ifdef USE_SMOOTHED_DEPTH
 
     float probeDepth = SAMPLE_TEXTURE2D_LOD(
         _SmoothedDepth,
@@ -93,7 +104,7 @@ inline float GetProbeDepth(float2 uv, int cascadeLevel)
     probeDepth = 1.0f - probeDepth;
     #endif
 
-#else
+    #else
 
     float probeDepth = SAMPLE_TEXTURE2D_LOD(
         _MinMaxDepth,
@@ -102,7 +113,7 @@ inline float GetProbeDepth(float2 uv, int cascadeLevel)
         cascadeLevel + 1
     ).y;
 
-#endif
+    #endif
 
     return probeDepth;
 }
@@ -155,14 +166,113 @@ inline float4 LoadUpperRadiance(int2 coords)
     #else
     upperRadiance *= 0.5f;
     #endif
-    
+
     return upperRadiance;
+}
+
+#define _UpsampleTolerance 1e-5f
+#define _NoiseFilterStrength 0.99999999f
+
+// The bilateral upscale function (2x2 neighborhood, color4 version)
+float4 BilUpColor(
+    float HiDepth,
+    float4 LowDepths,
+    float4 lowValue0, float4 lowValue1, float4 lowValue2, float4 lowValue3,
+    float4 intialWeights
+)
+{
+    float4 weights = intialWeights * float4(9, 3, 1, 3) / (abs(HiDepth - LowDepths) + _UpsampleTolerance);
+    float TotalWeight = dot(weights, 1) + _NoiseFilterStrength;
+    float4 WeightedSum =
+        lowValue0 * weights.x
+        + lowValue1 * weights.y
+        + lowValue2 * weights.z
+        + lowValue3 * weights.w
+        + _NoiseFilterStrength;
+    return WeightedSum / TotalWeight;
+}
+
+float4 LoadUpperCascadeBilateral(
+    int2 upperCascadeCoords,
+    float2 bilinearWeights,
+    float lowerCascadeDepth,
+    float4 upperCascadeDepths)
+{
+    float4 a = _OutCascade[upperCascadeCoords];
+    float4 b = _OutCascade[upperCascadeCoords + int2(1, 0)];
+    float4 c = _OutCascade[upperCascadeCoords + int2(0, 1)];
+    float4 d = _OutCascade[upperCascadeCoords + int2(1, 1)];
+
+    return BilUpColor(
+        lowerCascadeDepth,
+        upperCascadeDepths,
+        a, b, c, d,
+        float4(1.0f - bilinearWeights, bilinearWeights) * 4.0f
+    );
+}
+
+inline float4 LoadUpperRadianceBilateral(int2 coords)
+{
+    const int2 lowerCascadeSize = _ProbesCount;
+    const int2 upperCascadeSize = _ProbesCount * 0.5f;
+
+    int2 lowerProbeId = coords % lowerCascadeSize;
+    int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
+    float2 bilinearWeight = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
+
+    int2 upperCascadeCoords = floor(coords * 0.5f);
+
+    // 02----12----22----32----42----42
+    // | D01 |     | E11 |     | F21 |
+    // 02----12----22----32----42----42
+    // |     |     |     |     |     |
+    // 01----11----21----31----41----41
+    // | A00 |     | B10 |     | C20 |
+    // 00----10----20----30----40----40
+
+    upperCascadeCoords = upperCascadeCoords / upperCascadeSize * upperCascadeSize;
+    upperCascadeCoords.x *= 2;
+    upperCascadeCoords += upperProbeBottomLeftId;
+    upperCascadeCoords.y += upperCascadeSize.y * 4;
+
+    int2 offset = int2(upperCascadeSize.x, 0);
+
+    // float lowerProbeDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerProbeId, _CascadeLevel + 2).y;
+    float2 lowerUV = float2(lowerProbeId) / float2(lowerCascadeSize);
+    float lowerDepth = GetProbeDepth(lowerUV, _CascadeLevel);
+
+    // float2 upperProbeDepth00 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeBottomLeftId, _CascadeLevel + 3);
+    // float2 upperProbeDepth10 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeBottomLeftId + int2(1, 0), _CascadeLevel + 3);
+    // float2 upperProbeDepth01 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeBottomLeftId + int2(0, 1), _CascadeLevel + 3);
+    // float2 upperProbeDepth11 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeBottomLeftId + int2(1, 1), _CascadeLevel + 3);
+    float2 upperUV = float2(upperProbeBottomLeftId) / float2(upperCascadeSize);
+    float3 upperTexelOffset = float3(1.0f / float2(upperCascadeSize), 0.0f);
+    float2 upperDepth00 = GetProbeDepth(upperUV, _CascadeLevel + 1);
+    float2 upperDepth10 = GetProbeDepth(upperUV + upperTexelOffset.xz, _CascadeLevel + 1);
+    float2 upperDepth01 = GetProbeDepth(upperUV + upperTexelOffset.zy, _CascadeLevel + 1);
+    float2 upperDepth11 = GetProbeDepth(upperUV + upperTexelOffset.xy, _CascadeLevel + 1);
+
+    float4 upperDepths = float4(
+        upperDepth00.y,
+        upperDepth10.y,
+        upperDepth01.y,
+        upperDepth11.y
+    );
+
+    float4 radiance = 0.0f;
+
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords, bilinearWeight, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, bilinearWeight, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + 2 * offset, bilinearWeight, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords - offset, bilinearWeight, lowerDepth, upperDepths);
+
+    return radiance * 0.25f;
 }
 
 [numthreads(8, 4, 1)]
 void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 {
-    const float RayScale = 0.02f;
+    const float RayScale = 0.1f;
 
     int2 coords = int2(id.xy);
     int2 targetCoords = int2(id.xy);
@@ -173,16 +283,16 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    if (
-        _CascadeLevel == 0 &&
-        any(fmod(coords, _ProbesCount) == 0 || (coords + 1) % _ProbesCount == 0)
-    )
-    {
-        // NOTE: Borders
-        // _OutCascade[targetCoords] = float4(0.0f, 0.0f, 0.2f * _CascadeLevel, 1.0f);
-        // _OutCascade[targetCoords] = float4(0.0f, 0.0f, 1.0f, 1.0f);
-        // return;
-    }
+    // if (
+    //     _CascadeLevel == 0 &&
+    //     any(fmod(coords, _ProbesCount) == 0 || (coords + 1) % _ProbesCount == 0)
+    // )
+    // {
+    //     // NOTE: Borders
+    //     // _OutCascade[targetCoords] = float4(0.0f, 0.0f, 0.2f * _CascadeLevel, 1.0f);
+    //     // _OutCascade[targetCoords] = float4(0.0f, 0.0f, 1.0f, 1.0f);
+    //     // return;
+    // }
 
     // BUG: Fix probe probeCenterUV!
     int2 probeCenterCoord = coords % _ProbesCount;
@@ -211,7 +321,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
     float3 directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
 
-    int2 range = Ranges4[cascadeLevel];
+    int2 range = Ranges2[cascadeLevel];
 
     float3 rayOriginWS = probeCenterWS + directionWS * RayScale * range.x;
     float3 rayEndWS = probeCenterWS + directionWS * RayScale * range.y;
@@ -225,7 +335,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
 
     float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw);
-    stepsCount *= pow(0.5f, cascadeLevel + 2);
+    stepsCount *= pow(0.5f, cascadeLevel + 1);
     stepsCount = min(stepsCount, 200); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
@@ -246,7 +356,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             _MinMaxDepth,
             sampler_PointClamp,
             ray.xy,
-            cascadeLevel + 2
+            cascadeLevel + 1
         ).xy;
 
         // TODO: Use MinMax compare on lower mips and go up if collide.
@@ -275,7 +385,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    float4 upperRadiance = LoadUpperRadiance(coords);
+    // float4 upperRadiance = LoadUpperRadiance(coords);
+    float4 upperRadiance = LoadUpperRadianceBilateral(coords);
     radiance.rgb += upperRadiance.rgb * radiance.a;
     radiance.a *= upperRadiance.a;
 
