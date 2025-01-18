@@ -62,6 +62,11 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeMatrixParam(_compute, "_WorldToView", cameraData.GetViewMatrix());
             cmd.SetComputeMatrixParam(_compute, "_ViewToHClip", cameraData.GetGPUProjectionMatrix());
 
+            // TODO: Move out of this scope!
+            var settings = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
+            cmd.SetComputeFloatParam(_compute, "_UpsampleTolerance", settings.UpsampleTolerance.value);
+            cmd.SetComputeFloatParam(_compute, "_NoiseFilterStrength", settings.NoiseFilterStrength.value);
+            
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)
             {
                 Vector4 probesCount = new Vector4(

@@ -84,11 +84,13 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
 
                     cmd.SetRenderTarget(_tempBlurBuffer, mipLevel - 1);
                     cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
-                    BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.BlurredColorBuffer, _material, 1);
+                    cmd.SetGlobalVector("_OffsetDirection", new Vector4(1, 0));
+                    BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.BlurredColorBuffer, _material, 3);
 
                     cmd.SetRenderTarget(_radianceCascadesRenderingData.BlurredColorBuffer, mipLevel);
                     cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
-                    BlitUtils.BlitTexture(cmd, _tempBlurBuffer, _material, 2);
+                    cmd.SetGlobalVector("_OffsetDirection", new Vector4(0, 1));
+                    BlitUtils.BlitTexture(cmd, _tempBlurBuffer, _material, 3);
                 }
 
                 context.ExecuteCommandBuffer(cmd);
