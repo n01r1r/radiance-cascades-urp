@@ -181,7 +181,7 @@ float4 BilUpColor(
     float4 intialWeights
 )
 {
-    float4 weights = intialWeights * float4(9, 3, 1, 3) / (abs(HiDepth - LowDepths) + _UpsampleTolerance);
+    float4 weights = intialWeights / (abs(HiDepth - LowDepths) + _UpsampleTolerance);
     float TotalWeight = dot(weights, 1) + _NoiseFilterStrength;
     float4 WeightedSum =
         lowValue0 * weights.x
@@ -203,11 +203,20 @@ float4 LoadUpperCascadeBilateral(
     float4 c = _OutCascade[upperCascadeCoords + int2(0, 1)];
     float4 d = _OutCascade[upperCascadeCoords + int2(1, 1)];
 
+    float4 weights = float4(
+        length(bilinearWeights),
+        length(mad(bilinearWeights, float2(-1, 1), float2(1, 0))),
+        length(mad(bilinearWeights, float2(1, -1), float2(0, 1))),
+        length(mad(bilinearWeights, float2(-1, -1), float2(1, 1)))
+    );
+    weights = 1.0f - weights;
+    weights = saturate(weights);
+
     return BilUpColor(
         lowerCascadeDepth,
         upperCascadeDepths,
         a, b, c, d,
-        float4(1.0f - bilinearWeights, bilinearWeights) * 4.0f
+        weights * 9.0f
     );
 }
 
@@ -218,7 +227,7 @@ inline float4 LoadUpperRadianceBilateral(int2 coords)
 
     int2 lowerProbeId = coords % lowerCascadeSize;
     int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
-    float2 bilinearWeight = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
+    float2 bilinearWeights = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
 
     int2 upperCascadeCoords = floor(coords * 0.5f);
 
@@ -248,9 +257,9 @@ inline float4 LoadUpperRadianceBilateral(int2 coords)
     float2 upperUV = float2(upperProbeBottomLeftId) / float2(upperCascadeSize);
     float3 upperTexelOffset = float3(1.0f / float2(upperCascadeSize), 0.0f);
     float2 upperDepth00 = GetProbeDepth(upperUV, _CascadeLevel + 1);
-    float2 upperDepth10 = GetProbeDepth(upperUV + upperTexelOffset.xz, _CascadeLevel + 1);
-    float2 upperDepth01 = GetProbeDepth(upperUV + upperTexelOffset.zy, _CascadeLevel + 1);
-    float2 upperDepth11 = GetProbeDepth(upperUV + upperTexelOffset.xy, _CascadeLevel + 1);
+    float2 upperDepth10 = GetProbeDepth(upperUV + upperTexelOffset.xz, _CascadeLevel);
+    float2 upperDepth01 = GetProbeDepth(upperUV + upperTexelOffset.zy, _CascadeLevel);
+    float2 upperDepth11 = GetProbeDepth(upperUV + upperTexelOffset.xy, _CascadeLevel);
 
     float4 upperDepths = float4(
         upperDepth00.y,
@@ -259,12 +268,21 @@ inline float4 LoadUpperRadianceBilateral(int2 coords)
         upperDepth11.y
     );
 
+    float4 weights = 1.0f - float4(
+        length(bilinearWeights),
+        length(mad(bilinearWeights, float2(-1, 1), float2(1, 0))),
+        length(mad(bilinearWeights, float2(1, -1), float2(0, 1))),
+        length(mad(bilinearWeights, float2(-1, -1), float2(1, 1)))
+    );
+
+    // return weights;
+
     float4 radiance = 0.0f;
 
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords, bilinearWeight, lowerDepth, upperDepths);
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, bilinearWeight, lowerDepth, upperDepths);
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + 2 * offset, bilinearWeight, lowerDepth, upperDepths);
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords - offset, bilinearWeight, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords, bilinearWeights, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, bilinearWeights, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + 2 * offset, bilinearWeights, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords - offset, bilinearWeights, lowerDepth, upperDepths);
 
     return radiance * 0.25f;
 }
