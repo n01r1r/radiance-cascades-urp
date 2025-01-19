@@ -244,6 +244,9 @@ Shader "Hidden/RadianceCascade/Blit"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
+            #pragma target 2.0
+            #pragma editor_sync_compilation
+
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
@@ -251,6 +254,8 @@ Shader "Hidden/RadianceCascade/Blit"
             #include "Common.hlsl"
 
             TEXTURE2D_X(_BlitTexture);
+            TEXTURE2D(_MinMaxDepth);
+            
             TEXTURE2D(_GBuffer0); // Color
             TEXTURE2D(_GBuffer1); // Color
             TEXTURE2D(_GBuffer2); // Normals
@@ -291,8 +296,11 @@ Shader "Hidden/RadianceCascade/Blit"
             half4 Fragment(Varyings input) : SV_TARGET
             {
                 float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
-                
+
                 // TODO: Bilateral Upsampling.
+                float depth = SAMPLE_TEXTURE2D_LOD(_CameraDepthTexture, sampler_PointClamp, input.texcoord, 0);
+                float lowerDepth = SAMPLE_TEXTURE2D_LOD(_MinMaxDepth, sampler_PointClamp, input.texcoord, 0);
+
                 // TODO: Fix uv, to trim cascade padding.
                 float2 uv = (input.texcoord * _BlitTexture_TexelSize.zw + 4.0f) / (_BlitTexture_TexelSize.zw + 8.0f);
                 uv = (uv + float2(0.0f, 7.0f)) / 8.0f;
@@ -334,6 +342,9 @@ Shader "Hidden/RadianceCascade/Blit"
             HLSLPROGRAM
             #pragma vertex Vertex
             #pragma fragment Fragment
+
+            #pragma target 2.0
+            #pragma editor_sync_compilation
 
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"

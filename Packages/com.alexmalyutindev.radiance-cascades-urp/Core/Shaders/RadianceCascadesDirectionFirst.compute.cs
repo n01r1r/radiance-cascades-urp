@@ -8,11 +8,15 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         private readonly ComputeShader _compute;
         private readonly int _renderAndMergeKernel;
+        private readonly LocalKeyword _bilinearKw;
+        private readonly LocalKeyword _bilateralKw;
 
         public RadianceCascadesDirectionFirstCS(ComputeShader compute)
         {
             _compute = compute;
             _renderAndMergeKernel = _compute.FindKernel("RenderAndMergeCascade");
+            _bilinearKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILINEAR");
+            _bilateralKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILATERAL");
         }
 
         public void RenderMerge(
@@ -66,6 +70,10 @@ namespace AlexMalyutinDev.RadianceCascades
             var settings = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
             cmd.SetComputeFloatParam(_compute, "_UpsampleTolerance", settings.UpsampleTolerance.value);
             cmd.SetComputeFloatParam(_compute, "_NoiseFilterStrength", settings.NoiseFilterStrength.value);
+
+            // TODO: Fix keywords.
+            // cmd.SetKeyword(_compute, _bilinearKw, settings.UpscaleMode.value == UpscaleMode.Bilinear);
+            // cmd.SetKeyword(_compute, _bilateralKw, settings.UpscaleMode.value == UpscaleMode.Bilateral);
             
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)
             {
