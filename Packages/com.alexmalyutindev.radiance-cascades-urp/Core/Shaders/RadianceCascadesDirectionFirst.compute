@@ -220,6 +220,14 @@ float4 LoadUpperCascadeBilateral(
     );
     weights = saturate(weights);
 
+    float4 w = float4(bilinearWeights, 1.0f - bilinearWeights);
+    weights = float4(
+        w.z * w.w,
+        w.x * w.w,
+        w.z * w.y,
+        w.x * w.y
+    );
+
     return BilUpColor(
         lowerCascadeDepth,
         upperCascadeDepths,
@@ -254,8 +262,8 @@ inline float4 LoadUpperRadianceBilateral(int2 coords)
 
     int2 offset = int2(upperCascadeSize.x, 0);
 
-    float lowerDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerProbeId, _CascadeLevel);
-    lowerDepth = LinearEyeDepth(lowerDepth, _ZBufferParams);
+    float2 lowerDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerProbeId, _CascadeLevel);
+    lowerDepth = LinearEyeDepth((lowerDepth.x + lowerDepth.y) * 0.5f, _ZBufferParams);
 
     float2 upperDepth00 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeBottomLeftId, _CascadeLevel + 1);
     float2 upperDepth10 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeBottomLeftId + int2(1, 0), _CascadeLevel + 1);
@@ -267,6 +275,8 @@ inline float4 LoadUpperRadianceBilateral(int2 coords)
         LinearEyeDepth(upperDepth01.y, _ZBufferParams),
         LinearEyeDepth(upperDepth11.y, _ZBufferParams)
     );
+
+    // TODO: Compute smoothed lower depth.
 
     float4 radiance = 0.0f;
 
@@ -321,7 +331,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     // Raytracing
     float3 probeCenterWS = GetPositionWS(probeCenterUV, probeDepth);
     float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
-    probeCenterWS -= viewDirectionWS * 0.01f;
+    probeCenterWS -= viewDirectionWS * 0.05f;
 
     float3 directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
 
@@ -342,10 +352,16 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
     float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw);
     stepsCount *= pow(0.5f, cascadeLevel + 1);
-    stepsCount = min(stepsCount, 200); // NOTE: Oversampling prevention.
+    stepsCount = min(stepsCount, 100); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
+    stepsCount = 2 << (_CascadeLevel + 1);
+
     float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
+
+    // float4 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeCenterCoord, cascadeLevel);
+    // _OutCascade[targetCoords] = minMaxDepth;
+    // return;
 
     UNITY_LOOP
     for (int i = 0; i < stepsCount; i++)
@@ -358,15 +374,11 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             break;
         }
 
-        float2 minMaxDepth = SAMPLE_TEXTURE2D_LOD(
-            _MinMaxDepth,
-            sampler_PointClamp,
-            ray.xy,
-            cascadeLevel
-        ).xy;
+        float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, floor(ray.xy * _ProbesCount), cascadeLevel).xy;
 
         // TODO: Use MinMax compare on lower mips and go up if collide.
-        float depth = minMaxDepth.y; // dot(minMaxDepth, 0.5f); //
+        float depth = minMaxDepth.x;
+        // float depth = dot(minMaxDepth, 0.5f);
 
         float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
         bool test = linearDepth < -rayVS.z; // && linearDepth > -(rayVS.z + 1.25f);
@@ -385,7 +397,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         }
     }
 
-    if (cascadeLevel > 4)
+    if (cascadeLevel >= 5)
     {
         _OutCascade[targetCoords] = radiance;
         return;
