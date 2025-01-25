@@ -38,18 +38,7 @@ RWTexture2D<float4> _OutCascade;
 // |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
 // |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
 
-static const int2 Ranges1[] =
-{
-    int2(0, 1),
-    int2(1, 2),
-    int2(2, 4),
-    int2(4, 8),
-    int2(8, 16),
-    int2(16, 32),
-    int2(32, 64),
-};
-
-static const int2 Ranges2[] =
+static const int2 Ranges2[6] =
 {
     int2(0, 1),
     int2(1, 4),
@@ -57,10 +46,9 @@ static const int2 Ranges2[] =
     int2(16, 64),
     int2(64, 256),
     int2(256, 1024),
-    int2(1024, 2048),
 };
 
-static const int2 Ranges4[] =
+static const int2 Ranges4[6] =
 {
     int2(0, 4),
     int2(4, 16),
@@ -68,7 +56,6 @@ static const int2 Ranges4[] =
     int2(64, 256),
     int2(256, 1024),
     int2(1024, 2048),
-    int2(2048, 4096),
 };
 
 
@@ -259,12 +246,11 @@ float4 LoadUpperCascadeBilateral(
     );
 }
 
-inline float4 LoadUpperRadianceBilateral(int2 coords)
+float4 LoadUpperRadianceBilateral(int2 coords)
 {
-    const int2 lowerCascadeSize = _ProbesCount;
     const int2 upperCascadeSize = _ProbesCount * 0.5f;
 
-    int2 lowerProbeId = coords % lowerCascadeSize;
+    int2 lowerProbeId = coords % _ProbesCount;
     int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
 
     float2 bilinearWeights = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
@@ -346,11 +332,13 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     const float cascadeLevel = _CascadeLevel;
 
     float2 angleId;
-    const float cascadeFactor = pow(2.0f, cascadeLevel);
-    const float projRays = 8.0f * cascadeFactor;
-    const float depthRays = floor(4.0f * cascadeFactor * 2.0f);
-    angleId.x = floor(coords.x * projRays * _CascadeBufferSize.z);
-    angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
+    {
+        float cascadeFactor = pow(2.0f, cascadeLevel);
+        float projRays = 8.0f * cascadeFactor;
+        float depthRays = floor(4.0f * cascadeFactor * 2.0f);
+        angleId.x = floor(coords.x * projRays * _CascadeBufferSize.z);
+        angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
+    }
 
     float probeDepth = GetProbeDepth(probeCenterUV, cascadeLevel);
     if (probeDepth == UNITY_RAW_FAR_CLIP_VALUE)
@@ -375,18 +363,17 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     float3 rayEndVS = mul(_WorldToView, float4(rayEndWS, 1)).xyz;
     // rayEndVS = rayOriginVS + directionWS * RayScale * (range.y - range.x);
 
-    float4 rayOriginCS = mul(_ViewToHClip, float4(rayOriginVS, 1));
-    rayOriginCS.xyz /= rayOriginCS.w;
-    float4 rayEndCS = mul(_ViewToHClip, float4(rayEndVS, 1));
-    rayEndCS.xyz /= rayEndCS.w;
+    // float4 rayOriginCS = mul(_ViewToHClip, float4(rayOriginVS, 1));
+    // rayOriginCS.xyz /= rayOriginCS.w;
+    // float4 rayEndCS = mul(_ViewToHClip, float4(rayEndVS, 1));
+    // rayEndCS.xyz /= rayEndCS.w;
 
+    // float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw);
+    // stepsCount *= pow(0.5f, cascadeLevel + 1);
+    // stepsCount = min(stepsCount, 100); // NOTE: Oversampling prevention.
+    // stepsCount = max(2, stepsCount);
 
-    float stepsCount = length((rayEndCS.xy - rayOriginCS.xy) * _ColorTexture_TexelSize.zw);
-    stepsCount *= pow(0.5f, cascadeLevel + 1);
-    stepsCount = min(stepsCount, 100); // NOTE: Oversampling prevention.
-    stepsCount = max(2, stepsCount);
-
-    stepsCount = 2 * (2 << _CascadeLevel + 1);
+    float stepsCount = 2 * (2 << _CascadeLevel + 1);
 
     float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -416,8 +403,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
         // TODO: Compare depth for 4 depth rays.
         // TODO: Add ray length dependency.
-        float4 depth4Test = linearDepth.xxxx < float4(0.2f, 0.1f, -0.1f, -0.2f) - rayVS.zzzz;
-        float occlusion = dot(depth4Test, 0.2f);
+        // float4 depth4Test = linearDepth.xxxx < float4(0.2f, 0.1f, -0.1f, -0.2f) - rayVS.zzzz;
+        // float occlusion = dot(depth4Test, 0.2f);
 
         if (test)
         {
