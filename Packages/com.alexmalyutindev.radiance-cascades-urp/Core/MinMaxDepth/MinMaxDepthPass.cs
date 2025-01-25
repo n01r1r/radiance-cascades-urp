@@ -71,6 +71,9 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
             var cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, profilingSampler))
             {
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+
                 var depthBuffer = renderingData.cameraData.renderer.cameraDepthTargetHandle;
                 int width = depthBuffer.rt.width;
                 int height = depthBuffer.rt.height;
@@ -115,9 +118,6 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                         BlitUtils.BlitTexture(cmd, _tempMinMaxDepth, _material, CopyLevelPass);
                     }
                 }
-
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
             }
 
             context.ExecuteCommandBuffer(cmd);

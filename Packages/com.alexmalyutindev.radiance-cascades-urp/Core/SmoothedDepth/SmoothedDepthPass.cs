@@ -51,6 +51,9 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
             var cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, profilingSampler))
             {
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+
                 var depthBuffer = renderingData.cameraData.renderer.cameraDepthTargetHandle;
                 int width = depthBuffer.rt.width;
                 int height = depthBuffer.rt.height;
@@ -60,7 +63,8 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
                 cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
                 BlitUtils.BlitTexture(cmd, depthBuffer, _material, 0);
 
-                for (int mipLevel = 1; mipLevel < _radianceCascadesRenderingData.SmoothedDepth.rt.mipmapCount; mipLevel++)
+                var mipmapCount = _radianceCascadesRenderingData.SmoothedDepth.rt.mipmapCount;
+                for (int mipLevel = 1; mipLevel < mipmapCount; mipLevel++)
                 {
                     width >>= 1;
                     height >>= 1;
@@ -69,9 +73,6 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
                     cmd.SetRenderTarget(_radianceCascadesRenderingData.SmoothedDepth, mipLevel, CubemapFace.Unknown);
                     BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.SmoothedDepth, _material, 1);
                 }
-
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
             }
 
             context.ExecuteCommandBuffer(cmd);

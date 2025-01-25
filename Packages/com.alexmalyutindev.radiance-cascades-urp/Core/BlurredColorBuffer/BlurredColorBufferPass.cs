@@ -63,6 +63,9 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
             var cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, profilingSampler))
             {
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+
                 var colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
                 int width = colorBuffer.rt.width;
                 int height = colorBuffer.rt.height;
@@ -92,9 +95,6 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
                     cmd.SetGlobalVector("_OffsetDirection", new Vector4(0, 1));
                     BlitUtils.BlitTexture(cmd, _tempBlurBuffer, _material, 3);
                 }
-
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
             }
 
             context.ExecuteCommandBuffer(cmd);

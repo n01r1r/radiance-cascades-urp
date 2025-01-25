@@ -15,8 +15,9 @@ namespace AlexMalyutinDev.RadianceCascades
         {
             _compute = compute;
             _renderAndMergeKernel = _compute.FindKernel("RenderAndMergeCascade");
-            _bilinearKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILINEAR");
-            _bilateralKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILATERAL");
+            // TODO: Fix keywords.
+            // _bilinearKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILINEAR");
+            // _bilateralKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILATERAL");
         }
 
         public void RenderMerge(

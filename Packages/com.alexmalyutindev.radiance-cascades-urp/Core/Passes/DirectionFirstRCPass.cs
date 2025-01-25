@@ -60,6 +60,9 @@ namespace AlexMalyutinDev.RadianceCascades
 
             using (new ProfilingScope(cmd, profilingSampler))
             {
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+
                 _compute.RenderMerge(
                     cmd,
                     ref renderingData.cameraData,
@@ -81,9 +84,6 @@ namespace AlexMalyutinDev.RadianceCascades
                     BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
                 }
                 cmd.EndSample("RadianceCascade.Combine");
-
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
             }
 
             context.ExecuteCommandBuffer(cmd);
