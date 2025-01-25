@@ -38,6 +38,17 @@ RWTexture2D<float4> _OutCascade;
 // |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
 // |_↗_|_↑_|_↖_|_←_|_↙_|_↓_|_↘_|_↗_|
 
+static const int2 Ranges1[] =
+{
+    int2(0, 1),
+    int2(1, 2),
+    int2(2, 4),
+    int2(4, 8),
+    int2(8, 16),
+    int2(16, 32),
+    int2(32, 64),
+};
+
 static const int2 Ranges2[] =
 {
     int2(0, 1),
@@ -57,6 +68,7 @@ static const int2 Ranges4[] =
     int2(64, 256),
     int2(256, 1024),
     int2(1024, 2048),
+    int2(2048, 4096),
 };
 
 
@@ -211,22 +223,33 @@ float4 LoadUpperCascadeBilateral(
     float4 c = _OutCascade[upperCascadeCoords + int2(0, 1)];
     float4 d = _OutCascade[upperCascadeCoords + int2(1, 1)];
 
-    const float maxLength = length(float2(1, 1));
-    float4 weights = maxLength - float4(
-        length(bilinearWeights),
-        length(mad(bilinearWeights, float2(-1, 1), float2(1, 0))),
-        length(mad(bilinearWeights, float2(1, -1), float2(0, 1))),
-        length(mad(bilinearWeights, float2(-1, -1), float2(1, 1)))
-    );
-    weights = saturate(weights);
-
     float4 w = float4(bilinearWeights, 1.0f - bilinearWeights);
-    weights = float4(
+    float4 weights = float4(
         w.z * w.w,
         w.x * w.w,
         w.z * w.y,
         w.x * w.y
     );
+
+    return BilUpColor(
+        lowerCascadeDepth,
+        upperCascadeDepths,
+        a, b, c, d,
+        weights * 9.0f
+    );
+}
+
+float4 LoadUpperCascadeBilateral(
+    int2 upperCascadeCoords,
+    float4 weights,
+    float lowerCascadeDepth,
+    float4 upperCascadeDepths
+)
+{
+    float4 a = _OutCascade[upperCascadeCoords];
+    float4 b = _OutCascade[upperCascadeCoords + int2(1, 0)];
+    float4 c = _OutCascade[upperCascadeCoords + int2(0, 1)];
+    float4 d = _OutCascade[upperCascadeCoords + int2(1, 1)];
 
     return BilUpColor(
         lowerCascadeDepth,
@@ -243,7 +266,15 @@ inline float4 LoadUpperRadianceBilateral(int2 coords)
 
     int2 lowerProbeId = coords % lowerCascadeSize;
     int2 upperProbeBottomLeftId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
+
     float2 bilinearWeights = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
+    float4 weights = float4(bilinearWeights, 1.0f - bilinearWeights);
+    weights = float4(
+        weights.z * weights.w,
+        weights.x * weights.w,
+        weights.z * weights.y,
+        weights.x * weights.y
+    );
 
     int2 upperCascadeCoords = floor(coords * 0.5f);
 
@@ -280,16 +311,16 @@ inline float4 LoadUpperRadianceBilateral(int2 coords)
 
     float4 radiance = 0.0f;
 
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords, bilinearWeights, lowerDepth, upperDepths);
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, bilinearWeights, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords, weights, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, weights, lowerDepth, upperDepths);
 
     int2 secondaryUpperCascadeCoords = upperCascadeCoords - offset;
     secondaryUpperCascadeCoords.x += (secondaryUpperCascadeCoords.x < 0) * _CascadeBufferSize.x;
-    radiance += LoadUpperCascadeBilateral(secondaryUpperCascadeCoords, bilinearWeights, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(secondaryUpperCascadeCoords, weights, lowerDepth, upperDepths);
 
     secondaryUpperCascadeCoords = upperCascadeCoords + 2 * offset;
     secondaryUpperCascadeCoords.x -= (secondaryUpperCascadeCoords.x > _CascadeBufferSize.x) * _CascadeBufferSize.x;
-    radiance += LoadUpperCascadeBilateral(secondaryUpperCascadeCoords, bilinearWeights, lowerDepth, upperDepths);
+    radiance += LoadUpperCascadeBilateral(secondaryUpperCascadeCoords, weights, lowerDepth, upperDepths);
 
     return radiance * 0.25f;
 }
@@ -331,7 +362,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     // Raytracing
     float3 probeCenterWS = GetPositionWS(probeCenterUV, probeDepth);
     float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
-    probeCenterWS -= viewDirectionWS * 0.05f;
+    probeCenterWS -= viewDirectionWS * 0.02f;
 
     float3 directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
 
@@ -355,7 +386,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     stepsCount = min(stepsCount, 100); // NOTE: Oversampling prevention.
     stepsCount = max(2, stepsCount);
 
-    stepsCount = 2 << (_CascadeLevel + 1);
+    stepsCount = 2 * (2 << _CascadeLevel + 1);
 
     float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
