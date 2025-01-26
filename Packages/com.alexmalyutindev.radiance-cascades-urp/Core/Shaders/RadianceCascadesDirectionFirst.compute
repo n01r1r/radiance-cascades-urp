@@ -325,24 +325,54 @@ float4 LoadUpperRadianceBilateral(int2 coords)
 
     int2 offset = int2(upperCascadeSize.x, 0);
 
+    // NOTE: _SmoothedDepth [0..1] from near!
+    // TODO: Compute smoothed lower depth!
+    // TODO: Use VarianceDepth!
+    float smoothedDepth = SAMPLE_TEXTURE2D_LOD(
+        _SmoothedDepth,
+        sampler_LinearClamp,
+        float2(lowerProbeId) / float2(_ProbesCount),
+        _CascadeLevel
+    );
+    smoothedDepth = LinearEyeDepth(1.0f - smoothedDepth, _ZBufferParams);
+
     // TODO: Pass depth from Main
     float2 lowerDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerProbeId, _CascadeLevel);
     lowerDepth = LinearEyeDepth(lowerDepth, _ZBufferParams);
-    float depthThickness = abs(lowerDepth.x - lowerDepth.y) * 2;
+    float depthThickness = abs(lowerDepth.x - lowerDepth.y) * 0.5f; // BUG: This is 0 for Cascade0!
 
     float2 upperDepthA = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId, _CascadeLevel + 1);
     float2 upperDepthB = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 0), _CascadeLevel + 1);
     float2 upperDepthC = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(0, 1), _CascadeLevel + 1);
     float2 upperDepthD = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 1), _CascadeLevel + 1);
 
+    float2 avgDepth = float2(
+        min(upperDepthA.x, min(upperDepthB.x, min(upperDepthC.x, upperDepthD.x))),
+        max(upperDepthA.y, max(upperDepthB.y, max(upperDepthC.y, upperDepthD.y)))
+    );
+    avgDepth = LinearEyeDepth(avgDepth, _ZBufferParams);
+    depthThickness = abs(avgDepth.x - avgDepth.y) * 0.5f;
+
     float4 upperDepths = LinearEyeDepth(
-        float4(upperDepthA.y, upperDepthB.y, upperDepthC.y, upperDepthD.y),
+        float4(
+            upperDepthA.y,
+            upperDepthB.y,
+            upperDepthC.y,
+            upperDepthD.y
+        ),
         _ZBufferParams
     );
 
-    weights *= saturate(1.0f - abs(upperDepths - lowerDepth.y) / max(depthThickness, 0.001f));
+    // weights *= saturate(1.0f - abs(upperDepths - dot(lowerDepth, 0.5f)) / max(depthThickness, 0.000001f));
+    // float4 depthWeights = abs(1.0f - (depth0 - upperDepths) / max(depthThickness, 0.000001f));
+    // float4 depthWeights = saturate(1.0f - abs(upperDepths - depth0) / max(depthThickness, 0.000001f));
+    // float4 depthWeights = abs(1.0f - (depth0 - upperDepths) / max(depthThickness, 0.000001f));
 
-    // TODO: Compute smoothed lower depth.
+    float4 depthWeights = saturate(1.0f - abs(upperDepths - smoothedDepth) / max(depthThickness, 0.00001f));
+    depthWeights /= max(dot(depthWeights, 1.0f), 0.00001f);
+    weights *= depthWeights;
+
+    // weights /= max(dot(weights, 1.0f), 0.00001f);
 
     float4 radiance = 0.0f;
     radiance += LoadUpperCascadeBilateral(upperCascadeCoords, weights, lowerDepth, upperDepths);
@@ -458,6 +488,11 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     {
         #if defined(_UPSCALE_MODE_BILATERAL)
         float4 upperRadiance = LoadUpperRadianceBilateral(coords);
+
+        // TEMP!
+        // _OutCascade[targetCoords] = upperRadiance;
+        // return;
+
         #else
         float4 upperRadiance = LoadUpperRadiance(coords);
         #endif
