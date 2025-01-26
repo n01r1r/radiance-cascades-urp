@@ -69,6 +69,7 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
                 var colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
                 int width = colorBuffer.rt.width;
                 int height = colorBuffer.rt.height;
+                var mipsCount = _radianceCascadesRenderingData.BlurredColorBuffer.rt.mipmapCount;
 
                 cmd.SetRenderTarget(_radianceCascadesRenderingData.BlurredColorBuffer, 0, CubemapFace.Unknown);
                 cmd.SetGlobalInteger(InputMipLevel, 0);
@@ -78,11 +79,8 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
                 // NOTE: Can't render into MipLevel+1 and read from MipLevel of the same image on DX!
                 // Work around is to render blur in two taps:
                 // horizontal blur into _tempBlurBuffer, then vertical blur into BlurredColorBuffer
-                var mipsCount = _radianceCascadesRenderingData.BlurredColorBuffer.rt.mipmapCount;
                 for (int mipLevel = 1; mipLevel < mipsCount; mipLevel++)
                 {
-                    width >>= 1;
-                    height >>= 1;
                     cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
 
                     cmd.SetRenderTarget(_tempBlurBuffer, mipLevel - 1);
@@ -94,6 +92,9 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
                     cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
                     cmd.SetGlobalVector("_OffsetDirection", new Vector4(0, 1));
                     BlitUtils.BlitTexture(cmd, _tempBlurBuffer, _material, 3);
+
+                    width >>= 1;
+                    height >>= 1;
                 }
             }
 

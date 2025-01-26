@@ -13,6 +13,7 @@ Shader "Hidden/BlurredColorBuffer"
         Pass
         {
             Name "DownSampleColorBlurred"
+            Cull Back
 
             HLSLPROGRAM
             #pragma vertex Vertex
@@ -72,6 +73,7 @@ Shader "Hidden/BlurredColorBuffer"
         Pass
         {
             Name "DownSampleColorBlurredHorizontal"
+            Cull Back
 
             HLSLPROGRAM
             #pragma vertex Vertex
@@ -130,6 +132,7 @@ Shader "Hidden/BlurredColorBuffer"
         Pass
         {
             Name "DownSampleColorBlurredVertical"
+            Cull Back
 
             HLSLPROGRAM
             #pragma vertex Vertex
@@ -188,6 +191,7 @@ Shader "Hidden/BlurredColorBuffer"
         Pass
         {
             Name "DownSampleColorBlurredDirectional"
+            Cull Back
 
             HLSLPROGRAM
             #pragma vertex Vertex

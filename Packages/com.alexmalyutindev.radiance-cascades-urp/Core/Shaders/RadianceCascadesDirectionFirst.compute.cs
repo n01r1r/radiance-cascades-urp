@@ -34,6 +34,7 @@ namespace AlexMalyutinDev.RadianceCascades
             var kernel = _renderAndMergeKernel;
             cmd.BeginSample("RadianceCascade.RenderMerge");
 
+            // TODO: Remove! Only for debug purpose!
             cmd.SetRenderTarget(target);
             cmd.ClearRenderTarget(false, true, Color.clear);
 
@@ -87,6 +88,7 @@ namespace AlexMalyutinDev.RadianceCascades
                 cmd.SetComputeIntParam(_compute, "_CascadeLevel", cascadeLevel);
 
                 _compute.GetKernelThreadGroupSizes(kernel, out var x, out var y, out _);
+                // TODO: Spawn only one cascade size Y groups, make all latitudinal ray in one thread?
                 cmd.DispatchCompute(
                     _compute,
                     kernel,
@@ -97,20 +99,6 @@ namespace AlexMalyutinDev.RadianceCascades
             }
 
             cmd.EndSample("RadianceCascade.RenderMerge");
-        }
-        
-        public static Matrix4x4 CreateViewMatrix(Vector3 position, Quaternion rotation)
-        {
-            var view = Matrix4x4.TRS(position, rotation, Vector3.one).inverse;
-            if (SystemInfo.usesReversedZBuffer)
-            {
-                view.m20 = -view.m20;
-                view.m21 = -view.m21;
-                view.m22 = -view.m22;
-                view.m23 = -view.m23;
-            }
-
-            return view;
         }
     }
 }
