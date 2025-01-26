@@ -363,13 +363,8 @@ float4 LoadUpperRadianceBilateral(int2 coords)
         _ZBufferParams
     );
 
-    // weights *= saturate(1.0f - abs(upperDepths - dot(lowerDepth, 0.5f)) / max(depthThickness, 0.000001f));
-    // float4 depthWeights = abs(1.0f - (depth0 - upperDepths) / max(depthThickness, 0.000001f));
-    // float4 depthWeights = saturate(1.0f - abs(upperDepths - depth0) / max(depthThickness, 0.000001f));
-    // float4 depthWeights = abs(1.0f - (depth0 - upperDepths) / max(depthThickness, 0.000001f));
-
-    float4 depthWeights = saturate(1.0f - abs(upperDepths - smoothedDepth) / max(depthThickness, 0.00001f));
-    depthWeights /= max(dot(depthWeights, 1.0f), 0.00001f);
+    float4 depthWeights = saturate(1.0f - (abs(upperDepths - smoothedDepth) + 0.00001f) / depthThickness);
+    depthWeights /= dot(depthWeights + 0.00001f, 1.0f);
     weights *= depthWeights;
 
     // weights /= max(dot(weights, 1.0f), 0.00001f);
