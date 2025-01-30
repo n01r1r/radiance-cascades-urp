@@ -368,9 +368,9 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
         max(upperDepthA.y, max(upperDepthB.y, max(upperDepthC.y, upperDepthD.y)))
     );
     avgDepth = LinearEyeDepth(avgDepth, _ZBufferParams);
-    float depthThickness = abs(avgDepth.x - avgDepth.y) * 0.5f;
+    // BUG: If depthThickness too small it will lead to NaNs.
+    float depthThickness = max(abs(avgDepth.x - avgDepth.y) * 0.5f, 0.01f);
 
-    // TODO: Calculate this for Min and Max depth
     float4 depthWeightsMin = saturate(1.0f - (abs(lowerProbeDepth[0] - smoothedDepth) + 0.00001f) / depthThickness);
     depthWeightsMin /= dot(depthWeightsMin + 0.00001f, 1.0f);
 
