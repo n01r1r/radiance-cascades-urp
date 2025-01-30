@@ -95,7 +95,7 @@ namespace AlexMalyutinDev.RadianceCascades
             else if (renderType == RenderingType.DirectionFirstProbes)
             {
                 renderer.EnqueuePass(_minMaxDepthPass);
-                renderer.EnqueuePass(_smoothedDepthPass);
+                // renderer.EnqueuePass(_smoothedDepthPass);
                 renderer.EnqueuePass(_varianceDepthPass);
                 renderer.EnqueuePass(_blurredColorBufferPass);
                 renderer.EnqueuePass(_directionFirstRcPass);

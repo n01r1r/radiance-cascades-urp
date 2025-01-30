@@ -23,5 +23,7 @@ MonoBehaviour:
   MinMaxDepthMaterial: {fileID: 2100000, guid: dc93bb78952b544efa5cdf111388f3aa, type: 2}
   SmoothedDepthMaterial: {fileID: 2100000, guid: 6f4f24ad22f404cc5a359405f6fe8b7a,
     type: 2}
+  VarianceDepthMaterial: {fileID: 2100000, guid: a5d9d980a3d4c43429dab3968f87691e,
+    type: 2}
   BlurredColorBufferMaterial: {fileID: 2100000, guid: bbadee68113bf49449d2936f22037b09,
     type: 2}
