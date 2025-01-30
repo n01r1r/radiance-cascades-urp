@@ -17,6 +17,7 @@ namespace AlexMalyutinDev.RadianceCascades
         public Material HiZDepthMaterial;
         public Material MinMaxDepthMaterial;
         public Material SmoothedDepthMaterial;
+        public Material VarianceDepthMaterial;
         public Material BlurredColorBufferMaterial;
     }
 }

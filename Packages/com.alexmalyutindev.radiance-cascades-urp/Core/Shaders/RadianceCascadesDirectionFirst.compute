@@ -20,6 +20,7 @@ float4x4 _ViewToHClip;
 
 Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
+Texture2D<float2> _VarianceDepth;
 Texture2D<float4> _BlurredColor;
 
 // Output
@@ -335,6 +336,12 @@ float4 LoadUpperRadianceBilateral(int2 coords)
         _CascadeLevel
     );
     smoothedDepth = LinearEyeDepth(1.0f - smoothedDepth, _ZBufferParams);
+
+    float2 depthMoments = SAMPLE_TEXTURE2D_LOD(
+        _VarianceDepth, sampler_PointClamp, float2(lowerProbeId) / float2(_ProbesCount), 0
+    ).rg;
+    // NOTE: Chebyshev
+    smoothedDepth = depthMoments.x + sqrt(max(0.0, depthMoments.y - depthMoments.x * depthMoments.x)); 
 
     // TODO: Pass depth from Main
     float2 lowerDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerProbeId, _CascadeLevel);

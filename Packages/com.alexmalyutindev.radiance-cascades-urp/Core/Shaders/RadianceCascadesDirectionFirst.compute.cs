@@ -27,6 +27,7 @@ namespace AlexMalyutinDev.RadianceCascades
             RTHandle depth,
             RTHandle minMaxDepth,
             RTHandle smoothedDepth,
+            RTHandle varianceDepth,
             RTHandle blurredColor,
             ref RTHandle target
         )
@@ -50,6 +51,7 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.DepthTexture, depth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.SmoothedDepth, smoothedDepth);
+            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.BlurredColor, blurredColor);
 
             var targetRT = target.rt;

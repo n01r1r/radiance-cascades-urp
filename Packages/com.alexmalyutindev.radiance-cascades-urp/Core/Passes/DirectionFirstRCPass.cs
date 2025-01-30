@@ -70,6 +70,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     depthBuffer,
                     _renderingData.MinMaxDepth,
                     _renderingData.SmoothedDepth,
+                    _renderingData.VarianceDepth,
                     _renderingData.BlurredColorBuffer,
                     ref _cascade0
                 );

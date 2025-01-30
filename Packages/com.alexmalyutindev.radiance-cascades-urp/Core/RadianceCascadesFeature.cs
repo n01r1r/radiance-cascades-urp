@@ -1,6 +1,7 @@
 using AlexMalyutinDev.RadianceCascades.BlurredColorBuffer;
 using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
 using AlexMalyutinDev.RadianceCascades.SmoothedDepth;
+using AlexMalyutinDev.RadianceCascades.VarianceDepth;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -19,6 +20,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
         private MinMaxDepthPass _minMaxDepthPass;
         private SmoothedDepthPass _smoothedDepthPass;
+        private VarianceDepthPass _varianceDepthPass;
         private BlurredColorBufferPass _blurredColorBufferPass;
 
         private RadianceCascadesRenderingData _radianceCascadesRenderingData;
@@ -47,6 +49,10 @@ namespace AlexMalyutinDev.RadianceCascades
                 renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
             };
             _smoothedDepthPass = new SmoothedDepthPass(Resources.SmoothedDepthMaterial, _radianceCascadesRenderingData)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
+            };
+            _varianceDepthPass = new VarianceDepthPass(Resources.VarianceDepthMaterial, _radianceCascadesRenderingData)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
             };
@@ -90,6 +96,7 @@ namespace AlexMalyutinDev.RadianceCascades
             {
                 renderer.EnqueuePass(_minMaxDepthPass);
                 renderer.EnqueuePass(_smoothedDepthPass);
+                renderer.EnqueuePass(_varianceDepthPass);
                 renderer.EnqueuePass(_blurredColorBufferPass);
                 renderer.EnqueuePass(_directionFirstRcPass);
             }
