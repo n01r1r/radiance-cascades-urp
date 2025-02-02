@@ -262,7 +262,7 @@ float4 LoadUpperCascadeBilateral(
     );
 }
 
-float4 LoadUpperCascadeBilateral(int2 upperCascadeCoords, float4 weights)
+float4 LoadUpperCascade4Weights(int2 upperCascadeCoords, float4 weights)
 {
     float4 a = _OutCascade[upperCascadeCoords];
     float4 b = _OutCascade[upperCascadeCoords + int2(1, 0)];
@@ -355,13 +355,13 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
     ).rg;
     float smoothedDepth = depthMoments.x + sqrt(max(0.0, depthMoments.y - depthMoments.x * depthMoments.x));
 
-    // BUG: This is 0 for Cascade0! Calculate depthThikness using upper MinMaxDepth.
-    // float depthThickness = abs(lowerProbeDepth.x - lowerProbeDepth.y) * 0.5f;
+    float2 upperProbeMinMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerProbeId, _CascadeLevel);
+    upperProbeMinMaxDepth = LinearEyeDepth(upperProbeMinMaxDepth, _ZBufferParams);
 
-    float2 upperDepthA = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId, _CascadeLevel + 1);
-    float2 upperDepthB = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 0), _CascadeLevel + 1);
-    float2 upperDepthC = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(0, 1), _CascadeLevel + 1);
-    float2 upperDepthD = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 1), _CascadeLevel + 1);
+    float2 upperDepthA = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId, _CascadeLevel + 1), _ZBufferParams);
+    float2 upperDepthB = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 0), _CascadeLevel + 1), _ZBufferParams);
+    float2 upperDepthC = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(0, 1), _CascadeLevel + 1), _ZBufferParams);
+    float2 upperDepthD = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 1), _CascadeLevel + 1), _ZBufferParams);
 
     float2 weightedMinMaxDepth =
         weights.x * upperDepthA +
@@ -369,46 +369,37 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
         weights.z * upperDepthC +
         weights.w * upperDepthD;
 
-    weightedMinMaxDepth = LinearEyeDepth(weightedMinMaxDepth, _ZBufferParams);
-    // BUG: If depthThickness too small it will lead to NaNs.
-    float depthThickness = max(abs(weightedMinMaxDepth.x - weightedMinMaxDepth.y), 0.0000001f);
+    float depthThickness = max(abs(weightedMinMaxDepth.x - weightedMinMaxDepth.y), 0.00001f);
 
-    float4 depthWeightsMin = 1.0f - saturate(abs(lowerProbeDepth[0] - smoothedDepth) / depthThickness);
-    depthWeightsMin /= dot(depthWeightsMin + 0.00001f, 1.0f);
-
-    float4 depthWeightsMax = 1.0f - saturate(abs(lowerProbeDepth[1] - smoothedDepth) / depthThickness);
-    depthWeightsMax /= dot(depthWeightsMax + 0.00001f, 1.0f);
+    float minProbeWeight = saturate((weightedMinMaxDepth[0] - upperProbeMinMaxDepth[0]) / depthThickness);
+    float maxProbeWeight = saturate((weightedMinMaxDepth[0] - upperProbeMinMaxDepth[1]) / depthThickness);
 
     float2x4 radiance = 0.0f;
-    // TODO: Calculate pair: of upper radiance, on with weight for Min probe, and other for Max probe.
-    // radiance += LoadUpperCascadeBilateral(upperCascadeCoords, weights, depthWeightsMin, depthWeightsMax);
-    // radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, weights, depthWeightsMin, depthWeightsMax);
+
+    int halfCascadeBufferSizeX = floor(_CascadeBufferSize.x / 2);
+    int2 offsets[4] = {
+        int2(0, 0),
+        offset,
+        -offset + int2(halfCascadeBufferSizeX, 0) * (upperCascadeCoords.x < offset.x),
+        2 * offset - int2(halfCascadeBufferSizeX, 0) * (upperCascadeCoords.x + offset.x > halfCascadeBufferSizeX),
+    };
+
+    for (int i = 0; i < 4; i++)
+    {
+        int2 off = offsets[i];
+        float4 minProbeRadiance = LoadUpperCascade4Weights(upperCascadeCoords + off, weights);
+        float4 maxProbeRadiance = LoadUpperCascade4Weights(upperCascadeCoords + off + int2(halfCascadeBufferSizeX, 0), weights);
+        radiance[0] += lerp(minProbeRadiance, maxProbeRadiance, minProbeWeight);
+        radiance[1] += lerp(minProbeRadiance, maxProbeRadiance, maxProbeWeight);
+    }
     
-    float4 r0 = LoadUpperCascadeBilinear(upperCascadeCoords, weights);
-    radiance[0] += r0 * depthWeightsMin;
-    radiance[1] += r0 * depthWeightsMax;
-
-    float4 r1 = LoadUpperCascadeBilinear(upperCascadeCoords + offset, weights);
-    radiance[0] += r1 * depthWeightsMin;
-    radiance[1] += r1 * depthWeightsMax;
-
-    return radiance * 0.5f;
-
-    int2 secondaryUpperCascadeCoords = upperCascadeCoords - offset;
-    secondaryUpperCascadeCoords.x += (secondaryUpperCascadeCoords.x < 0) * _CascadeBufferSize.x;
-    radiance += LoadUpperCascadeBilateral(secondaryUpperCascadeCoords, weights, depthWeightsMin, depthWeightsMax);
-
-    secondaryUpperCascadeCoords = upperCascadeCoords + 2 * offset;
-    secondaryUpperCascadeCoords.x -= (secondaryUpperCascadeCoords.x > _CascadeBufferSize.x) * _CascadeBufferSize.x;
-    radiance += LoadUpperCascadeBilateral(secondaryUpperCascadeCoords, weights, depthWeightsMin, depthWeightsMax);
-
     return radiance * 0.25f;
 }
 
 [numthreads(8, 4, 1)]
 void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 {
-    const float RayScale = 0.2f;
+    const float RayScale = 0.1f;
 
     int2 coords = int2(id.xy);
     int2 targetCoords = int2(id.xy);
@@ -438,7 +429,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
     }
 
-    float2 probeMinMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeCenterCoord, cascadeLevel);
+    float2 probeMinMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeCenterCoord, cascadeLevel).xy;
     float2 probeMinMaxDepthLinear = LinearEyeDepth(probeMinMaxDepth, _ZBufferParams);
     float4 radiance[2];
     radiance[0] = float4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -489,7 +480,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             float depth = minMaxDepth[probeDepthId];
 
             float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
-            bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 2.25f);
+            bool test = linearDepth < -rayVS.z; // && linearDepth > -(rayVS.z + 2.25f);
 
             // TODO: Compare depth rays.
             // TODO: Add ray distance fading.
@@ -529,5 +520,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         #endif
     }
 
-    _OutCascade[targetCoords] = radiance[0] + radiance[1];
+
+    _OutCascade[targetCoords] = radiance[0]; // MinDepthProb
+    _OutCascade[targetCoords + int2(_CascadeBufferSize.x / 2, 0)] = radiance[1]; // MaxDepthProbe
 }

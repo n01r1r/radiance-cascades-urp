@@ -94,7 +94,7 @@ namespace AlexMalyutinDev.RadianceCascades
                 cmd.DispatchCompute(
                     _compute,
                     kernel,
-                    Mathf.CeilToInt(cascadeBufferSize.x / x),
+                    Mathf.CeilToInt(cascadeBufferSize.x / 2 / x),
                     Mathf.CeilToInt(cascadeBufferSize.y / (y * (1 << cascadeLevel))),
                     1
                 );
