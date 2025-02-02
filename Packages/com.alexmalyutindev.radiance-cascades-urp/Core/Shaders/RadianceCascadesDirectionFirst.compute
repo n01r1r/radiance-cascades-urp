@@ -405,7 +405,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     int2 targetCoords = int2(id.xy);
     targetCoords.y += _ProbesCount.y * 4;
 
-    if (coords.x >= _CascadeBufferSize.x || coords.y >= _ProbesCount.y * 4)
+    if (coords.x * 2 >= _CascadeBufferSize.x || coords.y >= _ProbesCount.y * 4)
     {
         return;
     }
