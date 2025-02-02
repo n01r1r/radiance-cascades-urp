@@ -363,25 +363,36 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
     float2 upperDepthC = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(0, 1), _CascadeLevel + 1);
     float2 upperDepthD = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 1), _CascadeLevel + 1);
 
-    float2 avgDepth = float2(
-        min(upperDepthA.x, min(upperDepthB.x, min(upperDepthC.x, upperDepthD.x))),
-        max(upperDepthA.y, max(upperDepthB.y, max(upperDepthC.y, upperDepthD.y)))
-    );
-    avgDepth = LinearEyeDepth(avgDepth, _ZBufferParams);
-    // BUG: If depthThickness too small it will lead to NaNs.
-    float depthThickness = max(abs(avgDepth.x - avgDepth.y) * 0.5f, 0.01f);
+    float2 weightedMinMaxDepth =
+        weights.x * upperDepthA +
+        weights.y * upperDepthB +
+        weights.z * upperDepthC +
+        weights.w * upperDepthD;
 
-    float4 depthWeightsMin = saturate(1.0f - (abs(lowerProbeDepth[0] - smoothedDepth) + 0.00001f) / depthThickness);
+    weightedMinMaxDepth = LinearEyeDepth(weightedMinMaxDepth, _ZBufferParams);
+    // BUG: If depthThickness too small it will lead to NaNs.
+    float depthThickness = max(abs(weightedMinMaxDepth.x - weightedMinMaxDepth.y), 0.0000001f);
+
+    float4 depthWeightsMin = 1.0f - saturate(abs(lowerProbeDepth[0] - smoothedDepth) / depthThickness);
     depthWeightsMin /= dot(depthWeightsMin + 0.00001f, 1.0f);
 
-    float4 depthWeightsMax = saturate(1.0f - (abs(lowerProbeDepth[1] - smoothedDepth) + 0.00001f) / depthThickness);
+    float4 depthWeightsMax = 1.0f - saturate(abs(lowerProbeDepth[1] - smoothedDepth) / depthThickness);
     depthWeightsMax /= dot(depthWeightsMax + 0.00001f, 1.0f);
 
     float2x4 radiance = 0.0f;
     // TODO: Calculate pair: of upper radiance, on with weight for Min probe, and other for Max probe.
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords, weights, depthWeightsMin, depthWeightsMax);
-    radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, weights, depthWeightsMin, depthWeightsMax);
-    // return radiance * 0.5f;
+    // radiance += LoadUpperCascadeBilateral(upperCascadeCoords, weights, depthWeightsMin, depthWeightsMax);
+    // radiance += LoadUpperCascadeBilateral(upperCascadeCoords + offset, weights, depthWeightsMin, depthWeightsMax);
+    
+    float4 r0 = LoadUpperCascadeBilinear(upperCascadeCoords, weights);
+    radiance[0] += r0 * depthWeightsMin;
+    radiance[1] += r0 * depthWeightsMax;
+
+    float4 r1 = LoadUpperCascadeBilinear(upperCascadeCoords + offset, weights);
+    radiance[0] += r1 * depthWeightsMin;
+    radiance[1] += r1 * depthWeightsMax;
+
+    return radiance * 0.5f;
 
     int2 secondaryUpperCascadeCoords = upperCascadeCoords - offset;
     secondaryUpperCascadeCoords.x += (secondaryUpperCascadeCoords.x < 0) * _CascadeBufferSize.x;
