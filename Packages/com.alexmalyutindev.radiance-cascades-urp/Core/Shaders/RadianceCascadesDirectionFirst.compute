@@ -459,6 +459,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
         float stepsCount = 2 << _CascadeLevel + 1;
 
+        float4 r = 0.0f;
+
         UNITY_LOOP
         for (int i = 0; i < stepsCount; i++)
         {
@@ -477,22 +479,26 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             ).xy;
 
             // TODO: Use MinMax compare on lower mips and go up if collide.
+            // TODO: Collide with Variance depth?
             float depth = minMaxDepth[probeDepthId];
-
             float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
-            bool test = linearDepth < -rayVS.z; // && linearDepth > -(rayVS.z + 2.25f);
 
-            // TODO: Compare depth rays.
-            // TODO: Add ray distance fading.
-            if (test)
-            {
-                // TODO: Calculate MipLevel depend on resolution!
-                radiance[probeDepthId].rgb = SAMPLE_TEXTURE2D_LOD(
+            float4 lighting = SAMPLE_TEXTURE2D_LOD(
                     _BlurredColor,
                     sampler_LinearClamp,
                     ray.xy,
                     cascadeLevel
-                ).rgb;
+            );
+            // TODO: Compare depth rays.
+            // TODO: Accumulate radiance though ray pass with cone weights.
+            // r += lighting * saturate(1.0f / abs(linearDepth + rayVS.z));
+
+            bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 2.0f);
+            if (test)
+            {
+                float distanceFade = 1.0f / (1.0f + range.x + i);
+                float depthFade = saturate(1.0f / abs(linearDepth + rayVS.z));
+                radiance[probeDepthId].rgb = lighting.rgb * distanceFade * depthFade;
                 radiance[probeDepthId].a = 0.0f;
                 break;
             }

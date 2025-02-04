@@ -115,7 +115,7 @@ float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
     // Azimuth
     float phi = (angleId.x + 0.5f) * deltaAngle;
     // Polar
-    float theta = lerp(0.4f, 0.6f, angleId.y * 0.33334f) * PI;
+    float theta = lerp(0.3f, 1.0f - 0.3f, angleId.y * 0.33334f) * PI;
 
     float2 sinCosPhi;
     float2 sinCosTheta;
