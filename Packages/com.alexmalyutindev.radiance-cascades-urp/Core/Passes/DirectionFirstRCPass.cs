@@ -10,6 +10,7 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         private readonly RadianceCascadesDirectionFirstCS _compute;
         private RTHandle _cascade0;
+        private RTHandle _radianceSH;
         private RTHandle _intermediateBuffer;
         private RTHandle _intermediateBuffer2;
 
@@ -42,6 +43,14 @@ namespace AlexMalyutinDev.RadianceCascades
             };
             RenderingUtils.ReAllocateIfNeeded(ref _cascade0, desc, name: "RadianceCascades");
 
+            desc = new RenderTextureDescriptor(cascadeWidth / 2, cascadeHeight / 2)
+            {
+                colorFormat = RenderTextureFormat.ARGBFloat,
+                sRGB = false,
+                enableRandomWrite = true,
+            };
+            RenderingUtils.ReAllocateIfNeeded(ref _radianceSH, desc, name: "RadianceSH");
+
             desc = new RenderTextureDescriptor(cameraTextureDescriptor.width / 2, cameraTextureDescriptor.height / 2)
             {
                 colorFormat = RenderTextureFormat.ARGBFloat,
@@ -52,6 +61,8 @@ namespace AlexMalyutinDev.RadianceCascades
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
+            var radianceCascades = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
+
             var renderer = renderingData.cameraData.renderer;
             var colorBuffer = renderer.cameraColorTargetHandle;
             var depthBuffer = renderer.cameraDepthTargetHandle;
@@ -75,17 +86,29 @@ namespace AlexMalyutinDev.RadianceCascades
                     ref _cascade0
                 );
 
-                cmd.BeginSample("RadianceCascade.Combine");
+                if (!radianceCascades.UseSH.value)
+                {
+                    cmd.BeginSample("RadianceCascade.Combine");
+                    {
+                        cmd.SetRenderTarget(_intermediateBuffer);
+                        cmd.SetGlobalTexture(ShaderIds.GBuffer3, renderer.GetGBuffer(3));
+                        BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
+                        
+                        cmd.SetRenderTarget(colorBuffer, depthBuffer);
+                        BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
+                    }
+                    cmd.EndSample("RadianceCascade.Combine");
+                }
+                else
                 {
                     // TODO: Combine into SH.
-                    cmd.SetRenderTarget(_intermediateBuffer);
-                    cmd.SetGlobalTexture(ShaderIds.GBuffer3, renderer.GetGBuffer(3));
-                    BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
+                    _compute.CombineSH(cmd, _cascade0, _radianceSH);
 
+                    cmd.BeginSample("RadianceCascade.BlitSH");
                     cmd.SetRenderTarget(colorBuffer, depthBuffer);
-                    BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
+                    BlitUtils.BlitTexture(cmd, _radianceSH, _blitMaterial, 4);
+                    cmd.EndSample("RadianceCascade.BlitSH");
                 }
-                cmd.EndSample("RadianceCascade.Combine");
             }
 
             context.ExecuteCommandBuffer(cmd);

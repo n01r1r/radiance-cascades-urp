@@ -1,10 +1,12 @@
 #pragma kernel RenderAndMergeCascade
+#pragma kernel CombineSH
 
 #define _UPSCALE_MODE_BILATERAL
 
 #include "Common.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/BRDF.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GlobalIllumination.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
 
 #define _LOAD_UPPER_CASCADE
 #define _FOUR_RAYS_MERGE
@@ -13,6 +15,7 @@
 // #define USE_SMOOTHED_DEPTH
 
 // Input
+float _RayScale;
 int _CascadeLevel;
 int2 _ProbesCount;
 float4x4 _WorldToView;
@@ -347,7 +350,6 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
     upperCascadeCoords += upperProbeLocalId;
     upperCascadeCoords.y += upperCascadeSize.y * 4;
 
-    int2 offset = int2(upperCascadeSize.x, 0);
 
     // NOTE: Chebyshev Variance
     float2 depthMoments = SAMPLE_TEXTURE2D_LOD(
@@ -376,8 +378,9 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 
     float2x4 radiance = 0.0f;
 
+    int2 offset = int2(upperCascadeSize.x, 0);
     int halfCascadeBufferSizeX = floor(_CascadeBufferSize.x / 2);
-    int2 offsets[4] = {
+    int2 neighbourRaysOffset[4] = {
         int2(0, 0),
         offset,
         -offset + int2(halfCascadeBufferSizeX, 0) * (upperCascadeCoords.x < offset.x),
@@ -386,21 +389,21 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 
     for (int i = 0; i < 4; i++)
     {
-        int2 off = offsets[i];
+        int2 off = neighbourRaysOffset[i];
         float4 minProbeRadiance = LoadUpperCascade4Weights(upperCascadeCoords + off, weights);
         float4 maxProbeRadiance = LoadUpperCascade4Weights(upperCascadeCoords + off + int2(halfCascadeBufferSizeX, 0), weights);
-        radiance[0] += lerp(minProbeRadiance, maxProbeRadiance, minProbeWeight);
-        radiance[1] += lerp(minProbeRadiance, maxProbeRadiance, maxProbeWeight);
+        // float4 minProbeRadiance = LoadUpperCascadeBilinear(upperCascadeCoords + off, bilinearWeights);
+        // float4 maxProbeRadiance = LoadUpperCascadeBilinear(upperCascadeCoords + off + int2(halfCascadeBufferSizeX, 0), bilinearWeights);
+        radiance[0] += lerp(minProbeRadiance, maxProbeRadiance, minProbeWeight) * 0.25f;
+        radiance[1] += lerp(minProbeRadiance, maxProbeRadiance, maxProbeWeight) * 0.25f;
     }
-    
-    return radiance * 0.25f;
+
+    return radiance;
 }
 
 [numthreads(8, 4, 1)]
 void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 {
-    const float RayScale = 0.1f;
-
     int2 coords = int2(id.xy);
     int2 targetCoords = int2(id.xy);
     targetCoords.y += _ProbesCount.y * 4;
@@ -451,8 +454,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
         probeCenterWS -= viewDirectionWS * 0.02f;
 
-        float3 rayOriginWS = probeCenterWS + directionWS * RayScale * range.x;
-        float3 rayEndWS = probeCenterWS + directionWS * RayScale * range.y;
+        float3 rayOriginWS = probeCenterWS + directionWS * _RayScale * range.x;
+        float3 rayEndWS = probeCenterWS + directionWS * _RayScale * range.y;
 
         float3 rayOriginVS = mul(_WorldToView, float4(rayOriginWS, 1)).xyz;
         float3 rayEndVS = mul(_WorldToView, float4(rayEndWS, 1)).xyz;
@@ -464,8 +467,9 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         UNITY_LOOP
         for (int i = 0; i < stepsCount; i++)
         {
+            float traveledDistance = i / (stepsCount - 1.0f);
             // TODO: Use DDA for ray marching.
-            float3 rayVS = lerp(rayOriginVS, rayEndVS, i / (stepsCount - 1.0f));
+            float3 rayVS = lerp(rayOriginVS, rayEndVS, traveledDistance);
             float3 ray = TransformViewToScreenSpace(rayVS);
             if (any(ray.xy < 0 || 1 < ray.xy))
             {
@@ -484,10 +488,10 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
 
             float4 lighting = SAMPLE_TEXTURE2D_LOD(
-                    _BlurredColor,
-                    sampler_LinearClamp,
-                    ray.xy,
-                    cascadeLevel
+                _BlurredColor,
+                sampler_LinearClamp,
+                ray.xy,
+                cascadeLevel
             );
             // TODO: Compare depth rays.
             // TODO: Accumulate radiance though ray pass with cone weights.
@@ -496,7 +500,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 2.0f);
             if (test)
             {
-                float distanceFade = 1.0f / (1.0f + range.x + i);
+                // float distanceFade = 1.0f / (1.0f + range.x + i / (stepsCount - 1.0f) * (range.y - range.x));
+                float distanceFade = 1.0f / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
                 float depthFade = saturate(1.0f / abs(linearDepth + rayVS.z));
                 radiance[probeDepthId].rgb = lighting.rgb * distanceFade * depthFade;
                 radiance[probeDepthId].a = 0.0f;
@@ -529,4 +534,83 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
     _OutCascade[targetCoords] = radiance[0]; // MinDepthProb
     _OutCascade[targetCoords + int2(_CascadeBufferSize.x / 2, 0)] = radiance[1]; // MaxDepthProbe
+}
+
+
+#define WEIGHT_0 (4.0f / 17.0f)
+#define WEIGHT_1 (8.0f / 17.0f)
+
+// Output
+// ._____________.
+// | SH0  | SH1x |
+// |______|______|
+// | SH1y | SH1z |
+// |______|______|
+RWTexture2D<float4> _RadianceSH;
+
+[numthreads(8, 4, 1)]
+void CombineSH(uint3 id : SV_DispatchThreadID)
+{
+    int2 coords = id.xy;
+
+    int2 upperCascadeSize = _ProbesCount * 0.5f;
+    int2 lowerProbeId = coords % _ProbesCount;
+    // | c | d |
+    // |___|___|
+    // |[a]| b |
+    // |___|___|
+    int2 upperProbeLocalId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
+    // TODO: Sample Cascade MinMaxDepth
+
+    float2 bilinearWeights = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
+    float4 weights = float4(bilinearWeights, 1.0f - bilinearWeights);
+    weights = float4(
+        weights.z * weights.w,
+        weights.x * weights.w,
+        weights.z * weights.y,
+        weights.x * weights.y
+    );
+
+    float4x4 SH = 0.0f;
+
+    int2 upperCascadeCoords = upperProbeLocalId;
+    upperCascadeCoords.y += upperCascadeSize.y * 7;
+
+    for (int y = 0; y < 4; y++)
+    {
+        for (int x = 0; x < 4; x++)
+        {
+            float3 direction = GetRay_DirectionFirst(int2(x, y), 0);
+
+            // Sample radiance trilinear (uv, depth). 
+            int2 upperCoords = upperCascadeCoords - int2(x, y) * upperCascadeSize;
+            float4 radianceMin = 0.0f;
+            radianceMin += _OutCascade[upperCoords] * weights.x;
+            radianceMin += _OutCascade[upperCoords + int2(1, 0)] * weights.y;
+            radianceMin += _OutCascade[upperCoords + int2(0, 1)] * weights.z;
+            radianceMin += _OutCascade[upperCoords + int2(1, 1)] * weights.w;
+
+            upperCoords.x += _ProbesCount.x * 4;
+            float4 radianceMax = 0.0f;
+            radianceMax += _OutCascade[upperCoords] * weights.x;
+            radianceMax += _OutCascade[upperCoords + int2(1, 0)] * weights.y;
+            radianceMax += _OutCascade[upperCoords + int2(0, 1)] * weights.z;
+            radianceMax += _OutCascade[upperCoords + int2(1, 1)] * weights.w;
+
+            // TODO: Depth blend!
+            float4 radiance = lerp(radianceMin, radianceMax, 0.5f);
+
+            SH[0] += radiance * kSHBasis0;
+            SH[1] += radiance * direction.x * kSHBasis1;
+            SH[2] += radiance * direction.y * kSHBasis1;
+            SH[3] += radiance * direction.z * kSHBasis1;
+        }
+    }
+
+    SH *= PI;
+
+    _RadianceSH[coords + int2(0, 1) * _ProbesCount] = SH[0];
+    _RadianceSH[coords + int2(1, 1) * _ProbesCount] = SH[1];
+    _RadianceSH[coords + int2(0, 0) * _ProbesCount] = SH[2];
+    _RadianceSH[coords + int2(1, 0) * _ProbesCount] = SH[3];
 }

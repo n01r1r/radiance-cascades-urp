@@ -8,6 +8,7 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         private readonly ComputeShader _compute;
         private readonly int _renderAndMergeKernel;
+        private readonly int _combineSHKernel;
         private readonly LocalKeyword _bilinearKw;
         private readonly LocalKeyword _bilateralKw;
 
@@ -15,6 +16,7 @@ namespace AlexMalyutinDev.RadianceCascades
         {
             _compute = compute;
             _renderAndMergeKernel = _compute.FindKernel("RenderAndMergeCascade");
+            _combineSHKernel = _compute.FindKernel("CombineSH");
             // TODO: Fix keywords.
             // _bilinearKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILINEAR");
             // _bilateralKw = new LocalKeyword(_compute, "_UPSCALE_MODE_BILATERAL");
@@ -50,7 +52,7 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.ColorTexture, color);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.DepthTexture, depth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
-            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.SmoothedDepth, smoothedDepth);
+            // cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.SmoothedDepth, smoothedDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.BlurredColor, blurredColor);
 
@@ -72,13 +74,12 @@ namespace AlexMalyutinDev.RadianceCascades
 
             // TODO: Move out of this scope!
             var settings = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
-            cmd.SetComputeFloatParam(_compute, "_UpsampleTolerance", settings.UpsampleTolerance.value);
-            cmd.SetComputeFloatParam(_compute, "_NoiseFilterStrength", settings.NoiseFilterStrength.value);
+            cmd.SetComputeFloatParam(_compute, "_RayScale", settings.RayScale.value);
 
             // TODO: Fix keywords.
             // cmd.SetKeyword(_compute, _bilinearKw, settings.UpscaleMode.value == UpscaleMode.Bilinear);
             // cmd.SetKeyword(_compute, _bilateralKw, settings.UpscaleMode.value == UpscaleMode.Bilateral);
-            
+
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)
             {
                 Vector4 probesCount = new Vector4(
@@ -101,6 +102,29 @@ namespace AlexMalyutinDev.RadianceCascades
             }
 
             cmd.EndSample("RadianceCascade.RenderMerge");
+        }
+
+        public void CombineSH(CommandBuffer cmd, RTHandle cascades, RTHandle radianceSH)
+        {
+            cmd.BeginSample("RadianceCascade.CombineSH");
+            
+            // TODO: Remove! Only for debug purpose!
+            cmd.SetRenderTarget(radianceSH);
+
+            Vector4 probesCount = new Vector4(
+                Mathf.FloorToInt(cascades.rt.width / 4),
+                Mathf.FloorToInt(cascades.rt.height / 4)
+            );
+            cmd.SetComputeVectorParam(_compute, "_ProbesCount", probesCount);
+            
+            cmd.SetComputeTextureParam(_compute, _combineSHKernel, ShaderIds.OutCascade, cascades);
+            cmd.SetComputeTextureParam(_compute, _combineSHKernel, "_RadianceSH", radianceSH);
+
+            
+            int width = radianceSH.rt.width / 2;
+            int height = radianceSH.rt.height / 2;
+            cmd.DispatchCompute(_compute, _combineSHKernel, width / 8, height / 4, 1);
+            cmd.EndSample("RadianceCascade.CombineSH");
         }
     }
 }

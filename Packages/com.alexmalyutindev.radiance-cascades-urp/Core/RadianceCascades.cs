@@ -9,10 +9,7 @@ namespace AlexMalyutinDev.RadianceCascades
         public VolumeParameter<RenderingType> RenderingType = new();
 
         [Header("Direction First")]
-        public VolumeParameter<UpscaleMode> UpscaleMode = new VolumeParameter<UpscaleMode>();
-        
-        [Header("Bilateral Settings")]
-        public ClampedFloatParameter UpsampleTolerance = new ClampedFloatParameter(1e-5f, 1e-12f, 1.0f);
-        public ClampedFloatParameter NoiseFilterStrength = new ClampedFloatParameter(0.99999f, 0.0f, 0.9999999f);
+        public ClampedFloatParameter RayScale = new ClampedFloatParameter(0.1f, 0.1f, 2.0f);
+        public BoolParameter UseSH = new BoolParameter(false, BoolParameter.DisplayType.EnumPopup);
     }
 }

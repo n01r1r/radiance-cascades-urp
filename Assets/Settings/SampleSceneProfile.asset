@@ -63,15 +63,12 @@ MonoBehaviour:
   RenderingType:
     m_OverrideState: 1
     m_Value: 1
-  UpscaleMode:
+  RayScale:
+    m_OverrideState: 0
+    m_Value: 0.1
+  UseSH:
     m_OverrideState: 0
     m_Value: 0
-  UpsampleTolerance:
-    m_OverrideState: 0
-    m_Value: 0.00001
-  NoiseFilterStrength:
-    m_OverrideState: 0
-    m_Value: 0.99999
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -144,12 +141,9 @@ MonoBehaviour:
   RenderingType:
     m_OverrideState: 1
     m_Value: 1
-  UpscaleMode:
-    m_OverrideState: 0
-    m_Value: 0
-  UpsampleTolerance:
+  RayScale:
+    m_OverrideState: 1
+    m_Value: 0.42
+  UseSH:
     m_OverrideState: 1
     m_Value: 1
-  NoiseFilterStrength:
-    m_OverrideState: 1
-    m_Value: 0

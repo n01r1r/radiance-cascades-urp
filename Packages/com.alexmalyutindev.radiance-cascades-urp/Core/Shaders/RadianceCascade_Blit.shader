@@ -255,7 +255,7 @@ Shader "Hidden/RadianceCascade/Blit"
 
             TEXTURE2D_X(_BlitTexture);
             TEXTURE2D(_MinMaxDepth);
-            
+
             TEXTURE2D(_GBuffer0); // Color
             TEXTURE2D(_GBuffer1); // Color
             TEXTURE2D(_GBuffer2); // Normals
@@ -295,11 +295,18 @@ Shader "Hidden/RadianceCascade/Blit"
 
             half4 Fragment(Varyings input) : SV_TARGET
             {
-                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
+                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_PointClamp, input.texcoord, 0);
 
                 // TODO: Bilateral Upsampling.
                 float depth = SAMPLE_TEXTURE2D_LOD(_CameraDepthTexture, sampler_PointClamp, input.texcoord, 0);
-                float lowerDepth = SAMPLE_TEXTURE2D_LOD(_MinMaxDepth, sampler_PointClamp, input.texcoord, 0);
+                float2 lowerDepth = SAMPLE_TEXTURE2D_LOD(_MinMaxDepth, sampler_PointClamp, input.texcoord, 0);
+
+                depth = LinearEyeDepth(depth, _ZBufferParams);
+                lowerDepth.x = LinearEyeDepth(lowerDepth.x, _ZBufferParams);
+                lowerDepth.y = LinearEyeDepth(lowerDepth.y, _ZBufferParams);
+
+                float depthThikness = abs(lowerDepth.x - lowerDepth.y);
+                float depthWeight = saturate((lowerDepth.x - depth) / depthThikness);
 
                 // TODO: Fix uv, to trim cascade padding.
                 float2 uv = (input.texcoord * _BlitTexture_TexelSize.zw + 4.0f) / (_BlitTexture_TexelSize.zw + 8.0f);
@@ -310,19 +317,26 @@ Shader "Hidden/RadianceCascade/Blit"
 
                 half4 color = 0.0f;
                 UNITY_UNROLL
-                for (int x = 0; x < 8; x++)
+                for (int x = 0; x < 4; x++)
                 {
                     for (int y = 0; y < 4; y++)
                     {
                         float3 direction = GetRay_DirectionFirst(float2(x, y), 0);
                         float NdotL = dot(direction, normalWS);
 
-                        float4 radiance = SAMPLE_TEXTURE2D_LOD(
+                        float4 radianceMin = SAMPLE_TEXTURE2D_LOD(
                             _BlitTexture,
                             sampler_LinearClamp,
                             uv + horizontalOffset * x - verticalOffset * y,
                             0
                         );
+                        float4 radianceMax = SAMPLE_TEXTURE2D_LOD(
+                            _BlitTexture,
+                            sampler_LinearClamp,
+                            uv + horizontalOffset * (x + 4) - verticalOffset * y,
+                            0
+                        );
+                        float4 radiance = lerp(radianceMin, radianceMax, depthWeight);
                         color += radiance * max(0, NdotL);
                     }
                 }
@@ -407,6 +421,110 @@ Shader "Hidden/RadianceCascade/Blit"
                 // half4 gbuffer3 = SAMPLE_TEXTURE2D_LOD(_GBuffer3, sampler_PointClamp, input.texcoord, 0);
                 // gbuffer0 += gbuffer3;
                 return color * gbuffer0;
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "BlitSH"
+            ZTest Off
+            ZWrite Off
+            Blend One Zero
+
+            HLSLPROGRAM
+            #pragma vertex Vertex
+            #pragma fragment Fragment
+
+            #pragma target 2.0
+            #pragma editor_sync_compilation
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
+            #include "Common.hlsl"
+
+            TEXTURE2D_X(_BlitTexture);
+            TEXTURE2D(_MinMaxDepth);
+
+            TEXTURE2D(_GBuffer0); // Color
+            TEXTURE2D(_GBuffer1); // Color
+            TEXTURE2D(_GBuffer2); // Normals
+            TEXTURE2D(_GBuffer3); // Emmision
+            float4 _BlitTexture_TexelSize;
+            float3 _CameraForward;
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 texcoord : TEXCOORD0;
+            };
+
+            Varyings Vertex(Attributes input)
+            {
+                Varyings output;
+
+                float4 pos = input.positionOS * 2.0f - 1.0f;
+                float2 uv = input.uv;
+
+                #if UNITY_UV_STARTS_AT_TOP
+                uv.y = 1 - uv.y;
+                #endif
+
+                // pos.z = UNITY_RAW_FAR_CLIP_VALUE;
+                output.positionCS = pos;
+                output.texcoord = uv;
+                return output;
+            }
+
+
+            half4 Fragment(Varyings input) : SV_TARGET
+            {
+                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
+                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
+
+                float4 sh0 = SAMPLE_TEXTURE2D_LOD(
+                    _BlitTexture,
+                    sampler_LinearClamp,
+                    input.texcoord * 0.5f + float2(0.0f, 0.5f),
+                    0
+                );
+                float4 shX = SAMPLE_TEXTURE2D_LOD(
+                    _BlitTexture,
+                    sampler_LinearClamp,
+                    input.texcoord * 0.5f + float2(0.5f, 0.5f),
+                    0
+                );
+                float4 shY = SAMPLE_TEXTURE2D_LOD(
+                    _BlitTexture,
+                    sampler_LinearClamp,
+                    input.texcoord * 0.5f,
+                    0
+                );
+                float4 shZ = SAMPLE_TEXTURE2D_LOD(
+                    _BlitTexture,
+                    sampler_LinearClamp,
+                    input.texcoord * 0.5f + float2(0.5f, 0.0f),
+                    0
+                );
+
+                float3 L0L1 = SHEvalLinearL0L1(
+                    normalWS,
+                    float4(shX.r, shY.r, shZ.r, sh0.r),
+                    float4(shX.g, shY.g, shZ.g, sh0.g),
+                    float4(shX.b, shY.b, shZ.b, sh0.b)
+                );
+                float4 radiance = float4(L0L1, 1.0f);
+
+                return radiance * gbuffer0;
             }
             ENDHLSL
         }
