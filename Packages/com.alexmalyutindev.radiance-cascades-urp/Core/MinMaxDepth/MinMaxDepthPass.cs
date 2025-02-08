@@ -32,8 +32,8 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             var desc = new RenderTextureDescriptor(
-                2048 / 8, // cameraTextureDescriptor.width >> 1,
-                1024 / 8 // cameraTextureDescriptor.height >> 1
+                _renderingData.Cascade0Size.x, 
+                _renderingData.Cascade0Size.y 
             )
             {
                 colorFormat = RenderTextureFormat.RGFloat,

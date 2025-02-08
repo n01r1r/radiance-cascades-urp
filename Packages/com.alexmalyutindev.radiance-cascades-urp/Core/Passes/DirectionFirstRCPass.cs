@@ -77,12 +77,11 @@ namespace AlexMalyutinDev.RadianceCascades
                 _compute.RenderMerge(
                     cmd,
                     ref renderingData.cameraData,
-                    colorBuffer,
                     depthBuffer,
                     _renderingData.MinMaxDepth,
-                    _renderingData.SmoothedDepth,
                     _renderingData.VarianceDepth,
                     _renderingData.BlurredColorBuffer,
+                    radianceCascades.RayScale.value,
                     ref _cascade0
                 );
 
@@ -92,6 +91,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     {
                         cmd.SetRenderTarget(_intermediateBuffer);
                         cmd.SetGlobalTexture(ShaderIds.GBuffer3, renderer.GetGBuffer(3));
+                        cmd.SetGlobalTexture(ShaderIds.MinMaxDepth, _renderingData.MinMaxDepth);
                         BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
                         
                         cmd.SetRenderTarget(colorBuffer, depthBuffer);

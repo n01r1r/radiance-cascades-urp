@@ -25,12 +25,11 @@ namespace AlexMalyutinDev.RadianceCascades
         public void RenderMerge(
             CommandBuffer cmd,
             ref CameraData cameraData,
-            RTHandle color,
             RTHandle depth,
             RTHandle minMaxDepth,
-            RTHandle smoothedDepth,
             RTHandle varianceDepth,
             RTHandle blurredColor,
+            float rayScale,
             ref RTHandle target
         )
         {
@@ -41,18 +40,8 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetRenderTarget(target);
             cmd.ClearRenderTarget(false, true, Color.clear);
 
-            var colorRT = color.rt;
-            var colorTexelSize = new Vector4(
-                1.0f / colorRT.width,
-                1.0f / colorRT.height,
-                colorRT.width,
-                colorRT.height
-            );
-            cmd.SetComputeVectorParam(_compute, ShaderIds.ColorTextureTexelSize, colorTexelSize);
-            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.ColorTexture, color);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.DepthTexture, depth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
-            // cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.SmoothedDepth, smoothedDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.BlurredColor, blurredColor);
 
@@ -66,15 +55,10 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeVectorParam(_compute, ShaderIds.CascadeBufferSize, cascadeBufferSize);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.OutCascade, target);
 
-            // var cameraTransform = cameraData.camera.transform;
-            // var rotation = Quaternion.LookRotation(cameraTransform.forward, cameraTransform.up);
-            // cmd.SetComputeMatrixParam(_compute, "_WorldToView", CreateViewMatrix(cameraData.worldSpaceCameraPos, rotation));
             cmd.SetComputeMatrixParam(_compute, "_WorldToView", cameraData.GetViewMatrix());
             cmd.SetComputeMatrixParam(_compute, "_ViewToHClip", cameraData.GetGPUProjectionMatrix());
-
-            // TODO: Move out of this scope!
-            var settings = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
-            cmd.SetComputeFloatParam(_compute, "_RayScale", settings.RayScale.value);
+            
+            cmd.SetComputeFloatParam(_compute, "_RayScale", rayScale);
 
             // TODO: Fix keywords.
             // cmd.SetKeyword(_compute, _bilinearKw, settings.UpscaleMode.value == UpscaleMode.Bilinear);

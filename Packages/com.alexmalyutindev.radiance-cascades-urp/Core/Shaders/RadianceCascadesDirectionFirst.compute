@@ -305,16 +305,6 @@ float2x4 LoadUpperCascadeBilateral(
     );
 }
 
-float2 LinearEyeDepth(float2 depth, float4 zBufferParam)
-{
-    return 1.0f / (zBufferParam.z * depth + zBufferParam.w);
-}
-
-float4 LinearEyeDepth(float4 depth, float4 zBufferParam)
-{
-    return 1.0f / (zBufferParam.z * depth + zBufferParam.w);
-}
-
 float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 {
     const int2 upperCascadeSize = _ProbesCount * 0.5f;
@@ -350,15 +340,9 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
     upperCascadeCoords += upperProbeLocalId;
     upperCascadeCoords.y += upperCascadeSize.y * 4;
 
-
     // NOTE: Chebyshev Variance
-    float2 depthMoments = SAMPLE_TEXTURE2D_LOD(
-        _VarianceDepth, sampler_PointClamp, float2(lowerProbeId) / float2(_ProbesCount), 0
-    ).rg;
+    float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_PointClamp, float2(lowerProbeId) / float2(_ProbesCount), 0).rg;
     float smoothedDepth = depthMoments.x + sqrt(max(0.0, depthMoments.y - depthMoments.x * depthMoments.x));
-
-    float2 upperProbeMinMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerProbeId, _CascadeLevel);
-    upperProbeMinMaxDepth = LinearEyeDepth(upperProbeMinMaxDepth, _ZBufferParams);
 
     float2 upperDepthA = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId, _CascadeLevel + 1), _ZBufferParams);
     float2 upperDepthB = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + int2(1, 0), _CascadeLevel + 1), _ZBufferParams);
@@ -373,8 +357,8 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 
     float depthThickness = max(abs(weightedMinMaxDepth.x - weightedMinMaxDepth.y), 0.00001f);
 
-    float minProbeWeight = saturate((weightedMinMaxDepth[0] - upperProbeMinMaxDepth[0]) / depthThickness);
-    float maxProbeWeight = saturate((weightedMinMaxDepth[0] - upperProbeMinMaxDepth[1]) / depthThickness);
+    float minProbeWeight = saturate((weightedMinMaxDepth[0] - lowerProbeDepth[0]) / depthThickness);
+    float maxProbeWeight = saturate((weightedMinMaxDepth[0] - lowerProbeDepth[1]) / depthThickness);
 
     float2x4 radiance = 0.0f;
 
@@ -392,12 +376,10 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
         int2 off = neighbourRaysOffset[i];
         float4 minProbeRadiance = LoadUpperCascade4Weights(upperCascadeCoords + off, weights);
         float4 maxProbeRadiance = LoadUpperCascade4Weights(upperCascadeCoords + off + int2(halfCascadeBufferSizeX, 0), weights);
-        // float4 minProbeRadiance = LoadUpperCascadeBilinear(upperCascadeCoords + off, bilinearWeights);
-        // float4 maxProbeRadiance = LoadUpperCascadeBilinear(upperCascadeCoords + off + int2(halfCascadeBufferSizeX, 0), bilinearWeights);
         radiance[0] += lerp(minProbeRadiance, maxProbeRadiance, minProbeWeight) * 0.25f;
         radiance[1] += lerp(minProbeRadiance, maxProbeRadiance, maxProbeWeight) * 0.25f;
     }
-
+    
     return radiance;
 }
 
@@ -413,7 +395,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    // BUG: Fix probe probeCenterUV!
+    // BUG: Fix probe probeCenterUV?
     int2 probeCenterCoord = coords % _ProbesCount;
     float2 probeCenterUV = float2(probeCenterCoord + 1.0f) / (_ProbesCount + 1.0f);
 
@@ -421,6 +403,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
     float3 directionWS;
     {
+        // TODO: Fix hardcoded values.
         float cascadeFactor = pow(2.0f, cascadeLevel);
         float projRays = 8.0f * cascadeFactor;
         float depthRays = floor(4.0f * cascadeFactor * 2.0f);
@@ -438,6 +421,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     radiance[0] = float4(0.0f, 0.0f, 0.0f, 1.0f);
     radiance[1] = float4(0.0f, 0.0f, 0.0f, 1.0f);
     int2 range = Ranges2[cascadeLevel];
+    float stepsCount = 2 * (2 << _CascadeLevel + 1);
 
     // TODO: Make two rays simultaneously!
     for (int probeDepthId = 0; probeDepthId < 2; probeDepthId++)
@@ -445,24 +429,21 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         if (probeMinMaxDepthLinear[probeDepthId] > 500.0f) // Probe is too far, skip it.
         {
             // NOTE: Skip probe that placed on skybox.
-            radiance[0] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+            radiance[probeDepthId] = float4(0.0f, 0.0f, 0.0f, 1.0f);
             continue;
         }
 
         // Raytracing
         float3 probeCenterWS = GetPositionWS(probeCenterUV, probeMinMaxDepth[probeDepthId]);
         float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
-        probeCenterWS -= viewDirectionWS * 0.02f;
+        // TODO: Check this offset. It gives strange outline. Maybe with depth rays offset doesn't needed. 
+        probeCenterWS -= viewDirectionWS * _RayScale * 0.5f;
 
         float3 rayOriginWS = probeCenterWS + directionWS * _RayScale * range.x;
         float3 rayEndWS = probeCenterWS + directionWS * _RayScale * range.y;
 
         float3 rayOriginVS = mul(_WorldToView, float4(rayOriginWS, 1)).xyz;
         float3 rayEndVS = mul(_WorldToView, float4(rayEndWS, 1)).xyz;
-
-        float stepsCount = 2 << _CascadeLevel + 1;
-
-        float4 r = 0.0f;
 
         UNITY_LOOP
         for (int i = 0; i < stepsCount; i++)
@@ -482,26 +463,26 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
                 cascadeLevel
             ).xy;
 
-            // TODO: Use MinMax compare on lower mips and go up if collide.
             // TODO: Collide with Variance depth?
             float depth = minMaxDepth[probeDepthId];
             float linearDepth = LinearEyeDepth(depth, _ZBufferParams);
 
-            float4 lighting = SAMPLE_TEXTURE2D_LOD(
-                _BlurredColor,
-                sampler_LinearClamp,
-                ray.xy,
-                cascadeLevel
-            );
             // TODO: Compare depth rays.
             // TODO: Accumulate radiance though ray pass with cone weights.
-            // r += lighting * saturate(1.0f / abs(linearDepth + rayVS.z));
+            // rad += lighting * saturate(1.0f / abs(linearDepth + rayVS.z));
 
-            bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 2.0f);
+            bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 3.0f);
             if (test)
             {
+                float4 lighting = SAMPLE_TEXTURE2D_LOD(
+                    _BlurredColor,
+                    sampler_LinearClamp,
+                    ray.xy,
+                    cascadeLevel
+                );
+
                 // float distanceFade = 1.0f / (1.0f + range.x + i / (stepsCount - 1.0f) * (range.y - range.x));
-                float distanceFade = 1.0f / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
+                float distanceFade = 1.0f; // / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
                 float depthFade = saturate(1.0f / abs(linearDepth + rayVS.z));
                 radiance[probeDepthId].rgb = lighting.rgb * distanceFade * depthFade;
                 radiance[probeDepthId].a = 0.0f;
@@ -512,8 +493,6 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
     if (cascadeLevel < 5)
     {
-        #if defined(_UPSCALE_MODE_BILATERAL)
-
         float2x4 upperRadiances = LoadUpperRadianceBilateral(coords, probeMinMaxDepthLinear);
 
         float4 upperRadiance = upperRadiances[0];
@@ -523,12 +502,6 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         upperRadiance = upperRadiances[1];
         radiance[1].rgb += upperRadiance.rgb * radiance[1].a;
         radiance[1].a *= upperRadiance.a;
-
-        #else
-        float4 upperRadiance = LoadUpperRadiance(coords);
-        radiance[0].rgb += upperRadiance.rgb * radiance[0].a;
-        radiance[0].a *= upperRadiance.a;
-        #endif
     }
 
 
@@ -536,9 +509,6 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     _OutCascade[targetCoords + int2(_CascadeBufferSize.x / 2, 0)] = radiance[1]; // MaxDepthProbe
 }
 
-
-#define WEIGHT_0 (4.0f / 17.0f)
-#define WEIGHT_1 (8.0f / 17.0f)
 
 // Output
 // ._____________.

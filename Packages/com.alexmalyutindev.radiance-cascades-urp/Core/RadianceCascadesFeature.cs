@@ -2,6 +2,7 @@ using AlexMalyutinDev.RadianceCascades.BlurredColorBuffer;
 using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
 using AlexMalyutinDev.RadianceCascades.SmoothedDepth;
 using AlexMalyutinDev.RadianceCascades.VarianceDepth;
+using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -83,6 +84,8 @@ namespace AlexMalyutinDev.RadianceCascades
                 return;
             }
 
+            _radianceCascadesRenderingData.Cascade0Size = new Vector2Int(2048 / 8, 1024 / 8);
+
             if (renderType == RenderingType.Simple2dProbes)
             {
                 renderer.EnqueuePass(_rc2dPass);
@@ -95,7 +98,6 @@ namespace AlexMalyutinDev.RadianceCascades
             else if (renderType == RenderingType.DirectionFirstProbes)
             {
                 renderer.EnqueuePass(_minMaxDepthPass);
-                // renderer.EnqueuePass(_smoothedDepthPass);
                 renderer.EnqueuePass(_varianceDepthPass);
                 renderer.EnqueuePass(_blurredColorBufferPass);
                 renderer.EnqueuePass(_directionFirstRcPass);
