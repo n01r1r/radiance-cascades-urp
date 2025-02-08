@@ -1,6 +1,8 @@
 using AlexMalyutinDev.RadianceCascades.BlurredColorBuffer;
 using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
 using AlexMalyutinDev.RadianceCascades.SmoothedDepth;
+using AlexMalyutinDev.RadianceCascades.VarianceDepth;
+using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -19,6 +21,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
         private MinMaxDepthPass _minMaxDepthPass;
         private SmoothedDepthPass _smoothedDepthPass;
+        private VarianceDepthPass _varianceDepthPass;
         private BlurredColorBufferPass _blurredColorBufferPass;
 
         private RadianceCascadesRenderingData _radianceCascadesRenderingData;
@@ -50,6 +53,10 @@ namespace AlexMalyutinDev.RadianceCascades
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
             };
+            _varianceDepthPass = new VarianceDepthPass(Resources.VarianceDepthMaterial, _radianceCascadesRenderingData)
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
+            };
             _blurredColorBufferPass = new BlurredColorBufferPass(
                 Resources.BlurredColorBufferMaterial,
                 _radianceCascadesRenderingData
@@ -77,6 +84,8 @@ namespace AlexMalyutinDev.RadianceCascades
                 return;
             }
 
+            _radianceCascadesRenderingData.Cascade0Size = new Vector2Int(2048 / 8, 1024 / 8);
+
             if (renderType == RenderingType.Simple2dProbes)
             {
                 renderer.EnqueuePass(_rc2dPass);
@@ -89,7 +98,7 @@ namespace AlexMalyutinDev.RadianceCascades
             else if (renderType == RenderingType.DirectionFirstProbes)
             {
                 renderer.EnqueuePass(_minMaxDepthPass);
-                renderer.EnqueuePass(_smoothedDepthPass);
+                renderer.EnqueuePass(_varianceDepthPass);
                 renderer.EnqueuePass(_blurredColorBufferPass);
                 renderer.EnqueuePass(_directionFirstRcPass);
             }

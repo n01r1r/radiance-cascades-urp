@@ -3,22 +3,20 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
+namespace AlexMalyutinDev.RadianceCascades.VarianceDepth
 {
-    public class SmoothedDepthPass : ScriptableRenderPass
+    public class VarianceDepthPass : ScriptableRenderPass
     {
-        private static readonly int InputMipLevel = Shader.PropertyToID("_InputMipLevel");
-        private static readonly int InputResolution = Shader.PropertyToID("_InputResolution");
-
         private readonly Material _material;
         private readonly RadianceCascadesRenderingData _radianceCascadesRenderingData;
+        private RTHandle _tempBuffer;
 
-        public SmoothedDepthPass(
+        public VarianceDepthPass(
             Material material,
             RadianceCascadesRenderingData radianceCascadesRenderingData
         )
         {
-            profilingSampler = new ProfilingSampler(nameof(SmoothedDepthPass));
+            profilingSampler = new ProfilingSampler(nameof(VarianceDepthPass));
             _material = material;
             _radianceCascadesRenderingData = radianceCascadesRenderingData;
         }
@@ -30,17 +28,24 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
                 cameraTextureDescriptor.height >> 1
             )
             {
-                colorFormat = RenderTextureFormat.RFloat,
+                colorFormat = RenderTextureFormat.RGFloat,
                 depthStencilFormat = GraphicsFormat.None,
-                useMipMap = true,
+                useMipMap = false,
                 autoGenerateMips = false,
             };
             RenderingUtils.ReAllocateIfNeeded(
-                ref _radianceCascadesRenderingData.SmoothedDepth,
+                ref _radianceCascadesRenderingData.VarianceDepth,
                 desc,
-                FilterMode.Bilinear,
+                FilterMode.Point,
                 TextureWrapMode.Clamp,
-                name: "SmoothedDepth"
+                name: "VarianceDepth"
+            );
+            RenderingUtils.ReAllocateIfNeeded(
+                ref _tempBuffer,
+                desc,
+                FilterMode.Point,
+                TextureWrapMode.Clamp,
+                name: "Temp"
             );
         }
 
@@ -55,24 +60,10 @@ namespace AlexMalyutinDev.RadianceCascades.SmoothedDepth
                 cmd.Clear();
 
                 var depthBuffer = renderingData.cameraData.renderer.cameraDepthTargetHandle;
-                int width = depthBuffer.rt.width;
-                int height = depthBuffer.rt.height;
-
-                cmd.SetRenderTarget(_radianceCascadesRenderingData.SmoothedDepth, 0, CubemapFace.Unknown);
-                cmd.SetGlobalInteger(InputMipLevel, 0);
-                cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
+                cmd.SetRenderTarget(_tempBuffer);
                 BlitUtils.BlitTexture(cmd, depthBuffer, _material, 0);
-
-                var mipmapCount = _radianceCascadesRenderingData.SmoothedDepth.rt.mipmapCount;
-                for (int mipLevel = 1; mipLevel < mipmapCount; mipLevel++)
-                {
-                    width >>= 1;
-                    height >>= 1;
-                    cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
-                    cmd.SetGlobalInteger(InputMipLevel, mipLevel - 1);
-                    cmd.SetRenderTarget(_radianceCascadesRenderingData.SmoothedDepth, mipLevel, CubemapFace.Unknown);
-                    BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.SmoothedDepth, _material, 1);
-                }
+                cmd.SetRenderTarget(_radianceCascadesRenderingData.VarianceDepth);
+                BlitUtils.BlitTexture(cmd, _tempBuffer, _material, 1);
             }
 
             context.ExecuteCommandBuffer(cmd);

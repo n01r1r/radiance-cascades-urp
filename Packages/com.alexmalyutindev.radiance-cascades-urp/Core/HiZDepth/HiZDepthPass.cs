@@ -53,6 +53,8 @@ namespace AlexMalyutinDev.RadianceCascades.HiZDepth
 
             using (new ProfilingScope(cmd, profilingSampler))
             {
+                cmd.Clear();
+
                 // cmd.SetComputeTextureParam(_hiZDepthCS, 0, "_InputDepth", depth);
                 // cmd.SetComputeTextureParam(_hiZDepthCS, 0, "_TargetDepth", _hiZDepth);
                 // cmd.DispatchCompute(

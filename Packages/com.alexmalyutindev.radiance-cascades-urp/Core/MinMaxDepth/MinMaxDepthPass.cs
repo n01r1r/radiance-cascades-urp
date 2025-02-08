@@ -11,14 +11,15 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
         private const int MinMaxOriginalDepthPass = 0;
         private const int MinMaxDepthMipPass = 1;
         private const int CopyLevelPass = 2;
+        private const int DepthToMinMaxDepth = 3;
 
         private static readonly int InputMipLevel = Shader.PropertyToID("_InputMipLevel");
         private static readonly int InputResolution = Shader.PropertyToID("_InputResolution");
         private static readonly int Scale = Shader.PropertyToID("_Scale");
-        
+
         private readonly Material _material;
         private readonly RadianceCascadesRenderingData _renderingData;
-        
+
         private RTHandle _tempMinMaxDepth;
 
         public MinMaxDepthPass(Material minMaxDepthMaterial, RadianceCascadesRenderingData renderingData)
@@ -31,8 +32,8 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             var desc = new RenderTextureDescriptor(
-                cameraTextureDescriptor.width >> 1,
-                cameraTextureDescriptor.height >> 1
+                _renderingData.Cascade0Size.x, 
+                _renderingData.Cascade0Size.y 
             )
             {
                 colorFormat = RenderTextureFormat.RGFloat,
@@ -48,7 +49,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 name: "MinMaxDepth"
             );
 
-            if (SystemInfo.graphicsDeviceType is  not (GraphicsDeviceType.Metal or GraphicsDeviceType.Vulkan))
+            if (SystemInfo.graphicsDeviceType is not (GraphicsDeviceType.Metal or GraphicsDeviceType.Vulkan))
             {
                 desc.width >>= 1;
                 desc.height >>= 1;
@@ -70,15 +71,25 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
             var cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, profilingSampler))
             {
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+
                 var depthBuffer = renderingData.cameraData.renderer.cameraDepthTargetHandle;
                 int width = depthBuffer.rt.width;
                 int height = depthBuffer.rt.height;
-                
+
                 cmd.SetRenderTarget(_renderingData.MinMaxDepth, 0, CubemapFace.Unknown);
                 cmd.SetGlobalInteger(InputMipLevel, 0);
                 cmd.SetGlobalFloat("_Scale", 1);
+                cmd.SetGlobalVector(
+                    "_TargetResolution",
+                    new Vector4(_renderingData.MinMaxDepth.rt.width, _renderingData.MinMaxDepth.rt.height)
+                );
                 cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
-                BlitUtils.BlitTexture(cmd, depthBuffer, _material, MinMaxOriginalDepthPass);
+                BlitUtils.BlitTexture(cmd, depthBuffer, _material, DepthToMinMaxDepth);
+
+                width = _renderingData.MinMaxDepth.rt.width * 2;
+                height = _renderingData.MinMaxDepth.rt.height * 2;
 
                 for (int mipLevel = 1; mipLevel < _renderingData.MinMaxDepth.rt.mipmapCount; mipLevel++)
                 {
@@ -107,9 +118,6 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                         BlitUtils.BlitTexture(cmd, _tempMinMaxDepth, _material, CopyLevelPass);
                     }
                 }
-
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
             }
 
             context.ExecuteCommandBuffer(cmd);

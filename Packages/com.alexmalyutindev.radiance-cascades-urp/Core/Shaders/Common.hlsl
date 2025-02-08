@@ -111,11 +111,11 @@ static float4 DirectionFirstRayZ = float4(-2.0f, -1.0f, 1.0f, 2.0f);
 
 float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
 {
-    float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.125f; // 1/8
+    float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.25f; // 1/4
     // Azimuth
     float phi = (angleId.x + 0.5f) * deltaAngle;
     // Polar
-    float theta = lerp(0.4f, 0.6f, angleId.y * 0.33334f) * PI;
+    float theta = lerp(0.3f, 1.0f - 0.3f, angleId.y * 0.33334f) * PI;
 
     float2 sinCosPhi;
     float2 sinCosTheta;
@@ -123,4 +123,14 @@ float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
     sincos(theta, sinCosTheta.x, sinCosTheta.y);
 
     return float3(sinCosTheta.x * sinCosPhi.y, sinCosTheta.y, sinCosTheta.x * sinCosPhi.x);
+}
+
+float2 LinearEyeDepth(float2 depth, float4 zBufferParam)
+{
+    return 1.0f / (zBufferParam.z * depth + zBufferParam.w);
+}
+
+float4 LinearEyeDepth(float4 depth, float4 zBufferParam)
+{
+    return 1.0f / (zBufferParam.z * depth + zBufferParam.w);
 }
