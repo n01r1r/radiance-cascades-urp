@@ -455,7 +455,7 @@ Shader "Hidden/RadianceCascade/Blit"
             Name "BlitSH"
             ZTest Off
             ZWrite Off
-            Blend One Zero
+            Blend One One
 
             HLSLPROGRAM
             #pragma vertex Vertex
@@ -537,7 +537,7 @@ Shader "Hidden/RadianceCascade/Blit"
             {
                 half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
                 float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
-                float4 radiance = SampleSH(input.texcoord, normalWS);
+                float4 radiance = SampleSH(input.texcoord, normalize(normalWS));
 
                 return radiance * gbuffer0;
             }

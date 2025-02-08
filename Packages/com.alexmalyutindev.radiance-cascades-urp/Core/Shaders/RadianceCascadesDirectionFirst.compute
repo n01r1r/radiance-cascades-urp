@@ -7,7 +7,7 @@
 // Input
 float _RayScale;
 int _CascadeLevel;
-int2 _ProbesCount;
+float2 _ProbesCount;
 float4x4 _WorldToView;
 float4x4 _ViewToHClip;
 
@@ -353,7 +353,7 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
             radianceMin += _RadianceCascades[upperCoords + int2(0, 1)] * weights.z;
             radianceMin += _RadianceCascades[upperCoords + int2(1, 1)] * weights.w;
 
-            upperCoords.x += upperCascadeSize.x * 4.0f;
+            upperCoords.x += 4 * upperCascadeSize.x;
             float4 radianceMax = 0.0f;
             radianceMax += _RadianceCascades[upperCoords] * weights.x;
             radianceMax += _RadianceCascades[upperCoords + int2(1, 0)] * weights.y;
@@ -369,8 +369,6 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
             SH[3] += radiance * direction.z * kSHBasis1;
         }
     }
-
-    SH *= PI;
 
     _RadianceSH[coords + int2(0, 1) * _ProbesCount] = SH[0];
     _RadianceSH[coords + int2(1, 1) * _ProbesCount] = SH[1];
