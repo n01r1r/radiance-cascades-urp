@@ -316,12 +316,12 @@ Shader "Hidden/RadianceCascade/Blit"
                     weights.z * weights.y,
                     weights.x * weights.y
                 );
-                
+
                 float2 probeDepth =
                     LinearEyeDepth(probeDepth0, _ZBufferParams) * weights.x +
                     LinearEyeDepth(probeDepth1, _ZBufferParams) * weights.y +
                     LinearEyeDepth(probeDepth2, _ZBufferParams) * weights.z +
-                    LinearEyeDepth(probeDepth3, _ZBufferParams) * weights.w; 
+                    LinearEyeDepth(probeDepth3, _ZBufferParams) * weights.w;
                 // return float4(abs(probeDepth - probeDepth0), 0, 1);
 
                 depth = LinearEyeDepth(depth, _ZBufferParams);
@@ -356,7 +356,7 @@ Shader "Hidden/RadianceCascade/Blit"
                             uv + horizontalOffset * (x + 4) - verticalOffset * y,
                             0
                         );
-        
+
                         float3 direction = GetRay_DirectionFirst(float2(x, y), 0);
                         float NdotL = dot(direction, normalWS);
                         float4 radiance = lerp(radianceMin, radianceMax, depthWeight);
@@ -510,44 +510,34 @@ Shader "Hidden/RadianceCascade/Blit"
                 return output;
             }
 
-
-            half4 Fragment(Varyings input) : SV_TARGET
+            float4 SampleSHBuffer(float2 uv)
             {
-                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
-                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
+                // TODO: Depth-guided sampling.
+                return SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv, 0);
+            }
 
-                float4 sh0 = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f + float2(0.0f, 0.5f),
-                    0
-                );
-                float4 shX = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f + float2(0.5f, 0.5f),
-                    0
-                );
-                float4 shY = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f,
-                    0
-                );
-                float4 shZ = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f + float2(0.5f, 0.0f),
-                    0
-                );
-
+            float4 SampleSH(float2 uv, float3 normalWS)
+            {
+                float2 shUV = uv * 0.5f;
+                float4 sh0 = SampleSHBuffer(shUV + float2(0.0f, 0.5f));
+                float4 shX = SampleSHBuffer(shUV + float2(0.5f, 0.5f));
+                float4 shY = SampleSHBuffer(shUV);
+                float4 shZ = SampleSHBuffer(shUV + float2(0.5f, 0.0f));
                 float3 L0L1 = SHEvalLinearL0L1(
                     normalWS,
                     float4(shX.r, shY.r, shZ.r, sh0.r),
                     float4(shX.g, shY.g, shZ.g, sh0.g),
                     float4(shX.b, shY.b, shZ.b, sh0.b)
                 );
-                float4 radiance = float4(L0L1, 1.0f);
+                return float4(max(half3(0.0h, 0.0h, 0.0h), L0L1), 1.0f);
+            }
+
+
+            half4 Fragment(Varyings input) : SV_TARGET
+            {
+                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
+                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
+                float4 radiance = SampleSH(input.texcoord, normalWS);
 
                 return radiance * gbuffer0;
             }
