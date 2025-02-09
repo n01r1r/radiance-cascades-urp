@@ -221,11 +221,11 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
     float2 probeMinMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeCenterCoord, depthLevel).xy;
     float2 probeMinMaxDepthLinear = LinearEyeDepth(probeMinMaxDepth, _ZBufferParams);
-    float4 radiance[2];
-    radiance[0] = float4(0.0f, 0.0f, 0.0f, 1.0f);
-    radiance[1] = float4(0.0f, 0.0f, 0.0f, 1.0f);
-    int2 range = Ranges4[cascadeLevel];
-    float stepsCount = range.y - range.x; // (2 << _CascadeLevel + 1);
+    float4 minMaxRadiance[2];
+    minMaxRadiance[0] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+    minMaxRadiance[1] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+    int2 range = Ranges2[cascadeLevel];
+    float stepsCount = (range.y - range.x); // (2 << _CascadeLevel + 1);
 
     // TODO: Make two rays simultaneously!
     for (int probeDepthId = 0; probeDepthId < 2; probeDepthId++)
@@ -233,7 +233,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         if (probeMinMaxDepthLinear[probeDepthId] > 500.0f) // Probe is too far, skip it.
         {
             // NOTE: Skip probe that placed on skybox.
-            radiance[probeDepthId] = float4(0.0f, 0.0f, 0.0f, 1.0f);
+            minMaxRadiance[probeDepthId] = float4(0.0f, 0.0f, 0.0f, 1.0f);
             continue;
         }
 
@@ -249,7 +249,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         float3 rayOriginVS = mul(_WorldToView, float4(rayOriginWS, 1)).xyz;
         float3 rayEndVS = mul(_WorldToView, float4(rayEndWS, 1)).xyz;
 
-        float4 rad = 0.0f;
+        float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
         UNITY_LOOP
         for (int i = 0; i < stepsCount; i++)
         {
@@ -264,6 +264,8 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
             float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
             float smoothedDepth = depthMoments.x + sqrt(max(0.0f, depthMoments.y - depthMoments.x * depthMoments.x));
+            float linearDepth = smoothedDepth;
+
             float4 lighting = SAMPLE_TEXTURE2D_LOD(
                 _BlurredColor,
                 sampler_LinearClamp,
@@ -271,30 +273,25 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
                 cascadeLevel + 1
             );
 
-            float2 minMaxDepth = LOAD_TEXTURE2D_LOD(
-                _MinMaxDepth,
-                floor(ray.xy * _ProbesCount),
-                depthLevel
-            ).xy;
-            float depth = minMaxDepth[probeDepthId];
+            float depthFade = saturate(1.0f / (1.0f + abs(linearDepth + rayVS.z)));
+            float distanceFade = 1.0f / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
 
             // TODO: Collide with Variance depth?
-            float linearDepth = smoothedDepth; // LinearEyeDepth(depth, _ZBufferParams);
-
             // TODO: Accumulate radiance though ray pass with cone weights.
-            // rad += lighting * saturate(1.0f / (1.0f + abs(linearDepth + rayVS.z)));
+            radiance.rgb += lighting.rgb;
+            radiance.a *= depthFade;
 
             // TODO: Compare depth rays.
-            bool test = linearDepth < -rayVS.z && linearDepth > -(rayVS.z + 3.0f);
+            bool test = linearDepth < -rayVS.z && linearDepth + 3.0f > -rayVS.z;
             if (test)
             {
-                float distanceFade = 1.0f; // / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
-                float depthFade = saturate(1.0f / (1.0f + abs(linearDepth + rayVS.z)));
-                radiance[probeDepthId].rgb = lighting.rgb * distanceFade * depthFade;
-                radiance[probeDepthId].a = 0.0f;
+                minMaxRadiance[probeDepthId].rgb = lighting.rgb * distanceFade * depthFade;
+                minMaxRadiance[probeDepthId].a = 0.0f;
                 break;
             }
         }
+
+        // minMaxRadiance[probeDepthId] = radiance;
     }
 
     if (cascadeLevel < 5)
@@ -302,16 +299,16 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         float2x4 upperRadiances = LoadUpperRadianceBilateral(coords, probeMinMaxDepthLinear);
 
         float4 upperRadiance = upperRadiances[0];
-        radiance[0].rgb += upperRadiance.rgb * radiance[0].a;
-        radiance[0].a *= upperRadiance.a;
+        minMaxRadiance[0].rgb += upperRadiance.rgb * minMaxRadiance[0].a;
+        minMaxRadiance[0].a *= upperRadiance.a;
 
         upperRadiance = upperRadiances[1];
-        radiance[1].rgb += upperRadiance.rgb * radiance[1].a;
-        radiance[1].a *= upperRadiance.a;
+        minMaxRadiance[1].rgb += upperRadiance.rgb * minMaxRadiance[1].a;
+        minMaxRadiance[1].a *= upperRadiance.a;
     }
 
-    _RadianceCascades[targetCoords] = radiance[0]; // MinDepthProb
-    _RadianceCascades[targetCoords + int2(_CascadeBufferSize.x / 2, 0)] = radiance[1]; // MaxDepthProbe
+    _RadianceCascades[targetCoords] = minMaxRadiance[0]; // MinDepthProb
+    _RadianceCascades[targetCoords + int2(_CascadeBufferSize.x / 2, 0)] = minMaxRadiance[1]; // MaxDepthProbe
 }
 
 
