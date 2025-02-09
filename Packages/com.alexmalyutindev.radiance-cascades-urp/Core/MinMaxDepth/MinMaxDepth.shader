@@ -88,11 +88,11 @@ Shader "Hidden/MinMaxDepth"
 
             float2 Fragment(Varyings input) : SV_TARGET
             {
-                int2 range = floor(_BlitTexture_TexelSize.zw / _TargetResolution.xy * 0.5f);
+                int2 range = floor(_BlitTexture_TexelSize.zw / _TargetResolution.xy);
                 float2 minMaxDepth = float2(1.0f, 0.0f);
-                for (int x = -range.x; x <= range.x; x++)
+                for (int x = 0; x < range.x; x++)
                 {
-                    for (int y = -range.y; y <= range.y; y++)
+                    for (int y = 0; y < range.y; y++)
                     {
                         float2 uv = input.uv + float2(x, y) * _BlitTexture_TexelSize.xy;
                         float depth = SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_PointClamp, uv, 0).r;

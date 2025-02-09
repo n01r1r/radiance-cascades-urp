@@ -512,7 +512,7 @@ Shader "Hidden/RadianceCascade/Blit"
 
             float4 SampleSHBuffer(float2 uv)
             {
-                // TODO: Depth-guided sampling.
+                // TODO: Depth-guided sampling
                 return SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv, 0);
             }
 
@@ -535,7 +535,7 @@ Shader "Hidden/RadianceCascade/Blit"
 
             half4 Fragment(Varyings input) : SV_TARGET
             {
-                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
+                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_LinearClamp, input.texcoord, 0);
                 float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
                 float4 radiance = SampleSH(input.texcoord, normalize(normalWS));
 

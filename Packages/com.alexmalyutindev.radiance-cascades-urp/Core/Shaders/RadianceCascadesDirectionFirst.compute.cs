@@ -81,7 +81,13 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.EndSample("RadianceCascade.RenderMerge");
         }
 
-        public void CombineSH(CommandBuffer cmd, RTHandle cascades, RTHandle radianceSH)
+        public void CombineSH(
+            CommandBuffer cmd,
+            RTHandle cascades,
+            RTHandle minMaxDepth,
+            RTHandle varianceDepth,
+            RTHandle radianceSH
+        )
         {
             cmd.BeginSample("RadianceCascade.CombineSH");
             
@@ -95,6 +101,8 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeVectorParam(_compute, "_ProbesCount", probesCount);
             
             cmd.SetComputeTextureParam(_compute, _combineSHKernel, "_RadianceCascades", cascades);
+            cmd.SetComputeTextureParam(_compute, _combineSHKernel, ShaderIds.MinMaxDepth, minMaxDepth);
+            cmd.SetComputeTextureParam(_compute, _combineSHKernel, ShaderIds.VarianceDepth, varianceDepth);
             cmd.SetComputeTextureParam(_compute, _combineSHKernel, "_RadianceSH", radianceSH);
 
             

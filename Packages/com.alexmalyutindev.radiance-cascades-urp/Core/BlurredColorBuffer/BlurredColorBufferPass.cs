@@ -28,8 +28,8 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
         {
             // TODO: Use resolution from settings.
             var desc = new RenderTextureDescriptor(
-                _radianceCascadesRenderingData.Cascade0Size.x,
-                _radianceCascadesRenderingData.Cascade0Size.y
+                2 * _radianceCascadesRenderingData.Cascade0Size.x,
+                2 * _radianceCascadesRenderingData.Cascade0Size.y
             )
             {
                 colorFormat = cameraTextureDescriptor.colorFormat,
@@ -75,7 +75,7 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
 
                 cmd.SetRenderTarget(_radianceCascadesRenderingData.BlurredColorBuffer, 0, CubemapFace.Unknown);
                 cmd.SetGlobalInteger(InputMipLevel, 0);
-                cmd.SetGlobalVector(InputResolution, new Vector4(width, height) * 0.25f);
+                cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
                 BlitUtils.BlitTexture(cmd, colorBuffer, _material, 0);
 
                 
