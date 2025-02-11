@@ -357,7 +357,7 @@ Shader "Hidden/RadianceCascade/Blit"
                             0
                         );
 
-                        float3 direction = GetRay_DirectionFirst(float2(x, y), 0);
+                        float3 direction = GetRayDirectionDFWS(float2(x, y), 0);
                         float NdotL = dot(direction, normalWS);
                         float4 radiance = lerp(radianceMin, radianceMax, depthWeight);
                         color += radiance * max(0, NdotL);
@@ -466,20 +466,15 @@ Shader "Hidden/RadianceCascade/Blit"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
             #include "Common.hlsl"
 
+            float4 _BlitTexture_TexelSize;
             TEXTURE2D_X(_BlitTexture);
             TEXTURE2D(_MinMaxDepth);
 
             TEXTURE2D(_GBuffer0); // Color
-            TEXTURE2D(_GBuffer1); // Color
             TEXTURE2D(_GBuffer2); // Normals
-            TEXTURE2D(_GBuffer3); // Emmision
-            float4 _BlitTexture_TexelSize;
-            float3 _CameraForward;
 
             struct Attributes
             {

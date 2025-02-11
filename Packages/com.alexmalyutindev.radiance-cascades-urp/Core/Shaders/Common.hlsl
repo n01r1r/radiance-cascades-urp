@@ -6,6 +6,10 @@ float4 _ColorTexture_TexelSize;
 float4 _DepthTexture_TexelSize;
 float4 _CascadeBufferSize;
 
+float4x4 _WorldToView;
+float4x4 _ViewToWorld;
+float4x4 _ViewToHClip;
+
 Texture2D _ColorTexture;
 Texture2D<float> _DepthTexture;
 Texture2D<half3> _NormalsTexture;
@@ -109,20 +113,24 @@ float3 Intersect(float3 planeP, float3 planeN, float3 rayP, float3 rayD)
 
 static float4 DirectionFirstRayZ = float4(-2.0f, -1.0f, 1.0f, 2.0f);
 
-float3 GetRay_DirectionFirst(float2 angleId, float cascadeLevel)
+float3 GetRayDirectionDFWS(float2 angleId, float cascadeLevel)
 {
-    float deltaAngle = TWO_PI * pow(0.5f, cascadeLevel) * 0.25f; // 1/4
+    float deltaPhi = TWO_PI * pow(0.5f, cascadeLevel) * 0.25f; // 1/4
+    static const float deltaTheta = PI * 0.25f;
     // Azimuth
-    float phi = (angleId.x + 0.5f) * deltaAngle;
+    float phi = (angleId.x + 0.5f) * deltaPhi;
+    // float phi = (angleId.x + 0.5f + angleId.y * 0.25f) * deltaPhi;
     // Polar
-    float theta = lerp(0.3f, 1.0f - 0.3f, angleId.y * 0.33334f) * PI;
+    float theta = (angleId.y + 0.5f) * deltaTheta;
+    // float theta = HALF_PI;
 
     float2 sinCosPhi;
     float2 sinCosTheta;
     sincos(phi, sinCosPhi.x, sinCosPhi.y);
     sincos(theta, sinCosTheta.x, sinCosTheta.y);
 
-    return float3(sinCosTheta.x * sinCosPhi.y, sinCosTheta.y, sinCosTheta.x * sinCosPhi.x);
+    float3 ray = float3(sinCosTheta.x * sinCosPhi.y, sinCosTheta.y, sinCosTheta.x * sinCosPhi.x);
+    return mul(_ViewToWorld, float4(ray.xzy, 0)).xyz;
 }
 
 float2 LinearEyeDepth(float2 depth, float4 zBufferParam)

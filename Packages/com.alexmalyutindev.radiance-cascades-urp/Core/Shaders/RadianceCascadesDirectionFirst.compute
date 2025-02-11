@@ -8,8 +8,7 @@
 float _RayScale;
 int _CascadeLevel;
 float2 _ProbesCount;
-float4x4 _WorldToView;
-float4x4 _ViewToHClip;
+float2 _VarianceDepthSize;
 
 Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
@@ -75,7 +74,7 @@ float3 TransformWorldToScreenSpace(float3 positionWS)
     return positionCS.xyz;
 }
 
-inline float3 TransformViewToScreenSpace(float3 positionVS)
+inline float3 TransformViewToScreenUV(float3 positionVS)
 {
     float4 positionCS = mul(_ViewToHClip, float4(positionVS, 1));
     positionCS.xyz /= positionCS.w;
@@ -168,9 +167,9 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
     int2 offset = int2(upperCascadeSize.x, 0);
     int halfCascadeBufferSizeX = floor(_CascadeBufferSize.x / 2);
     int2 neighbourRaysOffset[4] = {
+        -offset + int2(halfCascadeBufferSizeX, 0) * (upperCascadeCoords.x < offset.x),
         int2(0, 0),
         offset,
-        -offset + int2(halfCascadeBufferSizeX, 0) * (upperCascadeCoords.x < offset.x),
         2 * offset - int2(halfCascadeBufferSizeX, 0) * (upperCascadeCoords.x + offset.x > halfCascadeBufferSizeX),
     };
 
@@ -216,7 +215,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         angleId.x = floor(coords.x * projRays * _CascadeBufferSize.z);
         angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
 
-        directionWS = GetRay_DirectionFirst(angleId, cascadeLevel);
+        directionWS = GetRayDirectionDFWS(angleId, cascadeLevel);
     }
 
     float2 probeMinMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeCenterCoord, depthLevel).xy;
@@ -225,7 +224,6 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     minMaxRadiance[0] = float4(0.0f, 0.0f, 0.0f, 1.0f);
     minMaxRadiance[1] = float4(0.0f, 0.0f, 0.0f, 1.0f);
     int2 range = Ranges2[cascadeLevel];
-    float stepsCount = (range.y - range.x); // (2 << _CascadeLevel + 1);
 
     // TODO: Make two rays simultaneously!
     for (int probeDepthId = 0; probeDepthId < 2; probeDepthId++)
@@ -249,6 +247,12 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         float3 rayOriginVS = mul(_WorldToView, float4(rayOriginWS, 1)).xyz;
         float3 rayEndVS = mul(_WorldToView, float4(rayEndWS, 1)).xyz;
 
+        float2 rayOriginCS = TransformViewToScreenUV(rayOriginVS) * _VarianceDepthSize;
+        float2 rayEndCS = TransformViewToScreenUV(rayEndVS) * _VarianceDepthSize;
+
+        // TODO: Calculate proper ray steps count.
+        float stepsCount = clamp(length(rayOriginCS.xy - rayEndCS.xy), 1, 100);
+
         float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
         UNITY_LOOP
         for (int i = 0; i < stepsCount; i++)
@@ -256,15 +260,16 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
             float traveledDistance = i / (stepsCount - 1.0f);
             // TODO: Use DDA for ray marching.
             float3 rayVS = lerp(rayOriginVS, rayEndVS, traveledDistance);
-            float3 ray = TransformViewToScreenSpace(rayVS);
+            float3 ray = TransformViewToScreenUV(rayVS);
             if (any(ray.xy < 0 || 1 < ray.xy))
             {
                 break;
             }
 
+            float rayDepth = -rayVS.z;
+
             float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
-            float smoothedDepth = depthMoments.x + sqrt(max(0.0f, depthMoments.y - depthMoments.x * depthMoments.x));
-            float linearDepth = smoothedDepth;
+            float linearDepth = depthMoments.x + sqrt(max(0.0f, depthMoments.y - depthMoments.x * depthMoments.x));
 
             float4 lighting = SAMPLE_TEXTURE2D_LOD(
                 _BlurredColor,
@@ -273,19 +278,19 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
                 cascadeLevel + 1
             );
 
-            float depthFade = saturate(1.0f / (1.0f + abs(linearDepth + rayVS.z)));
+            float depthFade = saturate(1.0f / (1.0f + abs(linearDepth - rayDepth)));
             float distanceFade = 1.0f / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
 
             // TODO: Collide with Variance depth?
             // TODO: Accumulate radiance though ray pass with cone weights.
-            radiance.rgb += lighting.rgb;
+            radiance.rgb += lighting.rgb * depthFade;
             radiance.a *= depthFade;
 
             // TODO: Compare depth rays.
-            bool test = linearDepth < -rayVS.z && linearDepth + 3.0f > -rayVS.z;
+            bool test = linearDepth < rayDepth && linearDepth + 3.0f > rayDepth;
             if (test)
             {
-                minMaxRadiance[probeDepthId].rgb = lighting.rgb * distanceFade * depthFade;
+                minMaxRadiance[probeDepthId].rgb = lighting.rgb * depthFade;
                 minMaxRadiance[probeDepthId].a = 0.0f;
                 break;
             }
@@ -363,7 +368,7 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
     {
         for (int x = 0; x < 4; x++)
         {
-            float3 direction = GetRay_DirectionFirst(int2(x, y), 0);
+            float3 direction = GetRayDirectionDFWS(int2(x, y), 0);
 
             // Sample radiance trilinear (uv, depth). 
             int2 upperCoords = upperCascadeCoords + int2(x, -y) * upperCascadeSize;

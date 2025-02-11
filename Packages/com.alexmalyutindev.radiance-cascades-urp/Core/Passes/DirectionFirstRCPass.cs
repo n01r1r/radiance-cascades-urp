@@ -104,6 +104,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     // TODO: Combine into SH.
                     _compute.CombineSH(
                         cmd,
+                        ref renderingData.cameraData,
                         _cascade0,
                         _renderingData.MinMaxDepth,
                         _renderingData.VarianceDepth,
@@ -112,6 +113,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
                     cmd.BeginSample("RadianceCascade.BlitSH");
                     cmd.SetRenderTarget(colorBuffer, depthBuffer);
+                    cmd.SetGlobalMatrix("_ViewToWorld", renderingData.cameraData.GetViewMatrix().inverse);
                     BlitUtils.BlitTexture(cmd, _radianceSH, _blitMaterial, 4);
                     cmd.EndSample("RadianceCascade.BlitSH");
                 }
