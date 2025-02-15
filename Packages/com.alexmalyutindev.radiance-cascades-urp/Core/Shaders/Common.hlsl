@@ -119,7 +119,7 @@ float3 GetRayDirectionDFWS(float2 angleId, float cascadeLevel)
     static const float deltaTheta = PI * 0.25f;
     // Azimuth
     float phi = (angleId.x + 0.5f) * deltaPhi;
-    // float phi = (angleId.x + 0.5f + angleId.y * 0.25f) * deltaPhi;
+    // float phi = (angleId.x + angleId.y * 0.25f + 0.5f) * deltaPhi;
     // Polar
     float theta = (angleId.y + 0.5f) * deltaTheta;
     // float theta = HALF_PI;

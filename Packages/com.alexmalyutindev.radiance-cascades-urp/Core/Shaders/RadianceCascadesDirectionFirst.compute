@@ -159,8 +159,8 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 
     float depthThickness = max(abs(weightedMinMaxDepth.x - weightedMinMaxDepth.y), 0.00001f);
 
-    float minProbeWeight = saturate((weightedMinMaxDepth[0] - lowerProbeDepth[0]) / depthThickness);
-    float maxProbeWeight = saturate((weightedMinMaxDepth[0] - lowerProbeDepth[1]) / depthThickness);
+    float minProbeWeight = saturate(abs(weightedMinMaxDepth[0] - lowerProbeDepth[0]) / depthThickness);
+    float maxProbeWeight = saturate(abs(weightedMinMaxDepth[0] - lowerProbeDepth[1]) / depthThickness);
 
     float2x4 radiance = 0.0f;
 
@@ -173,14 +173,20 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
         2 * offset - int2(halfCascadeBufferSizeX, 0) * (upperCascadeCoords.x + offset.x > halfCascadeBufferSizeX),
     };
 
-    for (int i1 = 0; i1 < 4; i1++)
+    // TODO:
+    // foreach neighbours
+    //   sample 4 rays with bilinear weights
+    //   aggregate colors into lower min/max probes
+    float4 minProbeRadiance = 0.0f;
+    float4 maxProbeRadiance = 0.0f;
+    for (int rayI = 0; rayI < 4; rayI++)
     {
-        int2 off = neighbourRaysOffset[i1];
-        float4 minProbeRadiance = GetRadianceWeighted(upperCascadeCoords + off, weights);
-        float4 maxProbeRadiance = GetRadianceWeighted(upperCascadeCoords + off + int2(halfCascadeBufferSizeX, 0), weights);
-        radiance[0] += lerp(minProbeRadiance, maxProbeRadiance, minProbeWeight) * 0.25f;
-        radiance[1] += lerp(minProbeRadiance, maxProbeRadiance, maxProbeWeight) * 0.25f;
+        int2 off = neighbourRaysOffset[rayI];
+        minProbeRadiance += GetRadianceWeighted(upperCascadeCoords + off, weights);
+        maxProbeRadiance += GetRadianceWeighted(upperCascadeCoords + off + int2(halfCascadeBufferSizeX, 0), weights);
     }
+    radiance[0] = lerp(minProbeRadiance, maxProbeRadiance, minProbeWeight);
+    radiance[1] = lerp(minProbeRadiance, maxProbeRadiance, maxProbeWeight);
 
     return radiance;
 }
@@ -216,6 +222,11 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         angleId.y = fmod(floor((1.0f - (coords.y + 1) * _CascadeBufferSize.w) * depthRays), 4);
 
         directionWS = GetRayDirectionDFWS(angleId, cascadeLevel);
+
+        // float deltaPhi = TWO_PI * pow(0.5f, cascadeLevel) * 0.25f; // 1/4
+        // float phi = (angleId.x * 0.25f + angleId.y + 0.5f) * deltaPhi;
+        // _RadianceCascades[targetCoords] = phi * INV_PI * 0.5f; // MinDepthProb
+        // return;
     }
 
     float2 probeMinMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeCenterCoord, depthLevel).xy;
@@ -239,7 +250,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         float3 probeCenterWS = GetPositionWS(probeCenterUV, probeMinMaxDepth[probeDepthId]);
         float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
         // TODO: Check this offset. It gives strange outline. Maybe with depth rays offset doesn't needed. 
-        probeCenterWS -= viewDirectionWS * _RayScale * 0.5f;
+        // probeCenterWS -= viewDirectionWS * _RayScale * 0.5f;
 
         float3 rayOriginWS = probeCenterWS + directionWS * _RayScale * range.x;
         float3 rayEndWS = probeCenterWS + directionWS * _RayScale * range.y;
@@ -247,11 +258,11 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         float3 rayOriginVS = mul(_WorldToView, float4(rayOriginWS, 1)).xyz;
         float3 rayEndVS = mul(_WorldToView, float4(rayEndWS, 1)).xyz;
 
-        float2 rayOriginCS = TransformViewToScreenUV(rayOriginVS) * _VarianceDepthSize;
-        float2 rayEndCS = TransformViewToScreenUV(rayEndVS) * _VarianceDepthSize;
+        float2 rayOriginCS = TransformViewToScreenUV(rayOriginVS).xy * _VarianceDepthSize;
+        float2 rayEndCS = TransformViewToScreenUV(rayEndVS).xy * _VarianceDepthSize;
 
         // TODO: Calculate proper ray steps count.
-        float stepsCount = clamp(length(rayOriginCS.xy - rayEndCS.xy), 1, 100);
+        float stepsCount = clamp(length(rayOriginCS.xy - rayEndCS.xy) * 0.5f, 1, 200);
 
         float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
         UNITY_LOOP
@@ -278,19 +289,29 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
                 cascadeLevel + 1
             );
 
+            // float4 intersection = linearDepth - rayDepth + float4(-0.25f, -0.125f, 0.125f, 0.25f) * traveledDistance;
+            // intersection = saturate(1.0f - abs(intersection));
+            // intersection *= 0.1f;
+            // intersection /= 2.0f * (2 << _CascadeLevel);
+            
             float depthFade = saturate(1.0f / (1.0f + abs(linearDepth - rayDepth)));
             float distanceFade = 1.0f / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
 
             // TODO: Collide with Variance depth?
             // TODO: Accumulate radiance though ray pass with cone weights.
-            radiance.rgb += lighting.rgb * depthFade;
-            radiance.a *= depthFade;
+            // radiance.rgb += lighting.rgb * depthFade;
+            // radiance.a *= depthFade;
+            // radiance.rgb +=
+            //     lighting.rgb * intersection.x * 0.2f +
+            //     lighting.rgb * intersection.y * 0.3f +
+            //     lighting.rgb * intersection.z * 0.3f +
+            //     lighting.rgb * intersection.w * 0.2f;
 
             // TODO: Compare depth rays.
             bool test = linearDepth < rayDepth && linearDepth + 3.0f > rayDepth;
             if (test)
             {
-                minMaxRadiance[probeDepthId].rgb = lighting.rgb * depthFade;
+                minMaxRadiance[probeDepthId].rgb = lighting.rgb;
                 minMaxRadiance[probeDepthId].a = 0.0f;
                 break;
             }
@@ -301,13 +322,14 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
     if (cascadeLevel < 5)
     {
+        float radianceSectorSize = 1.0f / (4 << _CascadeLevel);
         float2x4 upperRadiances = LoadUpperRadianceBilateral(coords, probeMinMaxDepthLinear);
-
-        float4 upperRadiance = upperRadiances[0];
+        
+        float4 upperRadiance = upperRadiances[0] * radianceSectorSize;
         minMaxRadiance[0].rgb += upperRadiance.rgb * minMaxRadiance[0].a;
         minMaxRadiance[0].a *= upperRadiance.a;
 
-        upperRadiance = upperRadiances[1];
+        upperRadiance = upperRadiances[1] * radianceSectorSize;
         minMaxRadiance[1].rgb += upperRadiance.rgb * minMaxRadiance[1].a;
         minMaxRadiance[1].a *= upperRadiance.a;
     }
