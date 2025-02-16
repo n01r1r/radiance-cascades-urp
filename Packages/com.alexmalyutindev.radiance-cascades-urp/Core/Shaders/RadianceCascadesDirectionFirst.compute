@@ -414,22 +414,11 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
         weights.x * weights.y
     );
 
-    float4x4 SH = 0.0f;
-
-    int2 upperCascadeCoords = upperProbeLocalId;
-    upperCascadeCoords.y += upperCascadeSize.y * 7;
-
-    // NOTE: Chebyshev Variance
-    float2 screenUV = float2(lowerProbeId) / float2(_ProbesCount);
-    float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_PointClamp, screenUV, 0).rg;
-    float smoothedDepth = depthMoments.x + sqrt(max(0.0, depthMoments.y - depthMoments.x * depthMoments.x));
-
-    // TODO: Sample Cascade MinMaxDepth
-    int2 neighbours[4] = {int2(0, 0), int2(1, 0), int2(0, 1), int2(1, 1)};
     float2 weightedMinMaxDepth = 0.0f;
     for (int i = 0; i < 4; i++)
     {
-        float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + neighbours[i], 2);
+        int2 offset = int2(i % 2, i / 2);
+        float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + offset, 2);
         weightedMinMaxDepth += minMaxDepth * weights[i];
     }
     weightedMinMaxDepth = LinearEyeDepth(weightedMinMaxDepth, _ZBufferParams);
@@ -438,12 +427,18 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
     float depthThickness = max(weightedMinMaxDepth.x - weightedMinMaxDepth.y, 0.001f);
     float depthOffset = saturate((weightedMinMaxDepth.x - minMaxDepth.x) / depthThickness);
 
+    float4 sh0 = 0.0f;
+    float4 sh1 = 0.0f;
+    float4 sh2 = 0.0f;
+    float4 sh3 = 0.0f;
+
+    int2 upperCascadeCoords = upperProbeLocalId;
+    upperCascadeCoords.y += upperCascadeSize.y * 7;
+    
     for (int y = 0; y < 4; y++)
     {
         for (int x = 0; x < 4; x++)
         {
-            float3 direction = GetRayDirectionDFWS(int2(x, y), 0);
-
             // Sample radiance trilinear (uv, depth). 
             int2 upperCoords = upperCascadeCoords + int2(x, -y) * upperCascadeSize;
             float4 radianceMin = 0.0f;
@@ -461,15 +456,17 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
 
             float4 radiance = lerp(radianceMin, radianceMax, depthOffset);
 
-            SH[0] += radiance * kSHBasis0;
-            SH[1] += radiance * direction.x * kSHBasis1;
-            SH[2] += radiance * direction.y * kSHBasis1;
-            SH[3] += radiance * direction.z * kSHBasis1;
+            float3 direction = GetRayDirectionDFWS(int2(x, y), 0);
+
+            sh0 += radiance * kSHBasis0;
+            sh1 += radiance * direction.x * kSHBasis1;
+            sh2 += radiance * direction.y * kSHBasis1;
+            sh3 += radiance * direction.z * kSHBasis1;
         }
     }
 
-    _RadianceSH[coords + int2(0, 1) * _ProbesCount] = SH[0];
-    _RadianceSH[coords + int2(1, 1) * _ProbesCount] = SH[1];
-    _RadianceSH[coords + int2(0, 0) * _ProbesCount] = SH[2];
-    _RadianceSH[coords + int2(1, 0) * _ProbesCount] = SH[3];
+    _RadianceSH[coords + int2(0, 1) * _ProbesCount] = sh0;
+    _RadianceSH[coords + int2(1, 1) * _ProbesCount] = sh1;
+    _RadianceSH[coords + int2(0, 0) * _ProbesCount] = sh2;
+    _RadianceSH[coords + int2(1, 0) * _ProbesCount] = sh3;
 }
