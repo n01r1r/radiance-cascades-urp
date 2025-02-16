@@ -94,12 +94,22 @@ int2 CalculateRange(int cascadeLevel)
     return int2(start, end);
 }
 
+float3 GetPositionVS(float2 screenUV, float rawDepth)
+{
+    screenUV = screenUV * 2 - 1;
+    return ComputeViewSpacePosition(
+        float2(screenUV.x, -screenUV.y),
+        rawDepth,
+        UNITY_MATRIX_I_P
+    );
+}
+
 float3 GetPositionWS(float2 screenUV, float rawDepth)
 {
     screenUV = screenUV * 2 - 1;
     return ComputeWorldSpacePosition(
         float4(screenUV.x, -screenUV.y, rawDepth, 1),
-        unity_MatrixInvVP // _InvViewProjection
+        unity_MatrixInvVP
     );
 }
 
@@ -130,6 +140,26 @@ float3 GetRayDirectionDFWS(float2 angleId, float cascadeLevel)
 
     float3 ray = float3(sinCosTheta.x * sinCosPhi.y, sinCosTheta.y, sinCosTheta.x * sinCosPhi.x);
     return mul(_ViewToWorld, float4(ray.xzy, 0)).xyz;
+}
+
+float3 GetRayDirectionDFVS(float2 angleId, float cascadeLevel)
+{
+    float deltaPhi = TWO_PI * pow(0.5f, cascadeLevel) * 0.25f; // 1/4
+    static const float deltaTheta = PI * 0.25f;
+    // Azimuth
+    float phi = (angleId.x + 0.5f) * deltaPhi;
+    // float phi = (angleId.x + angleId.y * 0.25f + 0.5f) * deltaPhi;
+    // Polar
+    float theta = (angleId.y + 0.5f) * deltaTheta;
+    // float theta = HALF_PI;
+
+    float2 sinCosPhi;
+    float2 sinCosTheta;
+    sincos(phi, sinCosPhi.x, sinCosPhi.y);
+    sincos(theta, sinCosTheta.x, sinCosTheta.y);
+
+    float3 ray = float3(sinCosTheta.x * sinCosPhi.y, sinCosTheta.y, sinCosTheta.x * sinCosPhi.x);
+    return ray.xzy;
 }
 
 float2 LinearEyeDepth(float2 depth, float4 zBufferParam)

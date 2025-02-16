@@ -114,6 +114,7 @@ namespace AlexMalyutinDev.RadianceCascades
                     cmd.BeginSample("RadianceCascade.BlitSH");
                     cmd.SetRenderTarget(colorBuffer, depthBuffer);
                     cmd.SetGlobalMatrix("_ViewToWorld", renderingData.cameraData.GetViewMatrix().inverse);
+                    cmd.SetGlobalTexture("_MinMaxDepth", _renderingData.MinMaxDepth);
                     BlitUtils.BlitTexture(cmd, _radianceSH, _blitMaterial, 4);
                     cmd.EndSample("RadianceCascade.BlitSH");
                 }
