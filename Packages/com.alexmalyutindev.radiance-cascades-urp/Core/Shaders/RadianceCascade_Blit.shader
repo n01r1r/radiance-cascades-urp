@@ -508,7 +508,7 @@ Shader "Hidden/RadianceCascade/Blit"
             float4 SampleSHBuffer(float2 uv)
             {
                 // TODO: Depth-guided sampling
-                return SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv, 0);
+                return SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_PointClamp, uv, 0);
             }
 
             float4 SampleSH(float2 uv, float3 normalWS)

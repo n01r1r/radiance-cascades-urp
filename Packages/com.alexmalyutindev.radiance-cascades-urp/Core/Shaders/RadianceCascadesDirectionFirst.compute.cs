@@ -31,6 +31,8 @@ namespace AlexMalyutinDev.RadianceCascades
         )
         {
             var kernel = _renderAndMergeKernel;
+            if (kernel < 0) return;
+
             cmd.BeginSample("RadianceCascade.RenderMerge");
 
             // TODO: Remove! Only for debug purpose!
@@ -97,6 +99,9 @@ namespace AlexMalyutinDev.RadianceCascades
             RTHandle radianceSH
         )
         {
+            var kernel = _combineSHKernel;
+            if (kernel < 0) return;
+
             cmd.BeginSample("RadianceCascade.CombineSH");
 
             // TODO: Remove! Only for debug purpose!
@@ -109,15 +114,15 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeVectorParam(_compute, "_ProbesCount", probesCount);
             cmd.SetComputeMatrixParam(_compute, "_ViewToWorld", cameraData.GetViewMatrix().inverse);
 
-            cmd.SetComputeTextureParam(_compute, _combineSHKernel, "_RadianceCascades", cascades);
-            cmd.SetComputeTextureParam(_compute, _combineSHKernel, ShaderIds.MinMaxDepth, minMaxDepth);
-            cmd.SetComputeTextureParam(_compute, _combineSHKernel, ShaderIds.VarianceDepth, varianceDepth);
-            cmd.SetComputeTextureParam(_compute, _combineSHKernel, "_RadianceSH", radianceSH);
+            cmd.SetComputeTextureParam(_compute, kernel, "_RadianceCascades", cascades);
+            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
+            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
+            cmd.SetComputeTextureParam(_compute, kernel, "_RadianceSH", radianceSH);
 
 
             int width = radianceSH.rt.width / 2;
             int height = radianceSH.rt.height / 2;
-            cmd.DispatchCompute(_compute, _combineSHKernel, width / 8, height / 4, 1);
+            cmd.DispatchCompute(_compute, kernel, width / 8, height / 4, 1);
             cmd.EndSample("RadianceCascade.CombineSH");
         }
     }
