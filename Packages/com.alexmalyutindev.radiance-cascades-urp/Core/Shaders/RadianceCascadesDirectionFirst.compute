@@ -293,7 +293,7 @@ float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 
             _CascadeLevel
         );
 
-        float4x4 transmittance = (rayDepth - linearDepth) + depthRays * (i + range.x) * _RayScale;
+        float4x4 transmittance = (rayDepth - linearDepth) + depthRays * i * _RayScale;
         for (int depthRay = 0; depthRay < 16; depthRay++)
         {
             float4 r0 = r[depthRay / 4][depthRay % 4];
@@ -306,7 +306,7 @@ float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 
 
     for (int depthRay = 0; depthRay < 4; depthRay++)
     {
-        radiance += mul(float4(1.0f, 1.0f, 1.0f, 4.0f) / 16.0f, r[depthRay]);
+        radiance += mul(float4(1.0f, 1.0f, 1.0f, 1.0f) / 16.0f, r[depthRay]);
     }
     
     return radiance;
@@ -364,9 +364,6 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
 
         // Raytracing
         float3 probeCenterWS = GetPositionWS(probeCenterUV, probeMinMaxDepth[probeDepthId]);
-        float3 viewDirectionWS = normalize(probeCenterWS - _WorldSpaceCameraPos);
-        // TODO: Check this offset. It gives strange outline. Maybe with depth rays offset doesn't needed. 
-        probeCenterWS -= viewDirectionWS * _RayScale * 0.5f;
 
         float3 rayOriginWS = probeCenterWS + directionWS * _RayScale * range.x;
         float3 rayEndWS = probeCenterWS + directionWS * _RayScale * range.y;
@@ -400,12 +397,6 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         upperRadiance = upperRadiances[1] * radianceSectorSize;
         minMaxRadiance[1].rgb += upperRadiance.rgb * minMaxRadiance[1].a;
         minMaxRadiance[1].a *= saturate(upperRadiance.a);
-
-        // if (_CascadeLevel < 1)
-        // {
-        //     minMaxRadiance[0] = upperRadiances[0] * radianceSectorSize;
-        //     minMaxRadiance[1] = upperRadiances[1] * radianceSectorSize;
-        // }
     }
 
     _RadianceCascades[targetCoords] = minMaxRadiance[0]; // MinDepthProb
@@ -451,15 +442,13 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
     for (int i = 0; i < 4; i++)
     {
         float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + neighbours[i], 2);
-        minMaxDepth = LinearEyeDepth(minMaxDepth, _ZBufferParams);
-        // weightedMinMaxDepth += (minMaxDepth - smoothedDepth) * weights[i];
         weightedMinMaxDepth += minMaxDepth * weights[i];
     }
-    // weightedMinMaxDepth += smoothedDepth;
+    weightedMinMaxDepth = LinearEyeDepth(weightedMinMaxDepth, _ZBufferParams);
 
     float2 minMaxDepth = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, coords, 1), _ZBufferParams);
     float depthThickness = max(weightedMinMaxDepth.y - weightedMinMaxDepth.x, 0.000001f);
-    float depthOffset = saturate((weightedMinMaxDepth.x - minMaxDepth.x) / depthThickness);
+    float depthOffset = saturate((weightedMinMaxDepth.x - smoothedDepth.x) / depthThickness);
 
     for (int y = 0; y < 4; y++)
     {
