@@ -32,8 +32,8 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             var desc = new RenderTextureDescriptor(
-                _renderingData.Cascade0Size.x, 
-                _renderingData.Cascade0Size.y 
+                4 * _renderingData.Cascade0Size.x, 
+                4 * _renderingData.Cascade0Size.y 
             )
             {
                 colorFormat = RenderTextureFormat.RGFloat,
@@ -88,14 +88,11 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                 cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
                 BlitUtils.BlitTexture(cmd, depthBuffer, _material, DepthToMinMaxDepth);
 
-                width = _renderingData.MinMaxDepth.rt.width * 2;
-                height = _renderingData.MinMaxDepth.rt.height * 2;
+                width = _renderingData.MinMaxDepth.rt.width;
+                height = _renderingData.MinMaxDepth.rt.height;
 
                 for (int mipLevel = 1; mipLevel < _renderingData.MinMaxDepth.rt.mipmapCount; mipLevel++)
                 {
-                    width = Mathf.FloorToInt(width / 2.0f);
-                    height = Mathf.FloorToInt(height / 2.0f);
-
                     cmd.SetGlobalVector(InputResolution, new Vector4(width, height));
 
                     if (SystemInfo.graphicsDeviceType is GraphicsDeviceType.Metal or GraphicsDeviceType.Vulkan)
@@ -117,6 +114,9 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                         cmd.SetRenderTarget(_renderingData.MinMaxDepth, mipLevel);
                         BlitUtils.BlitTexture(cmd, _tempMinMaxDepth, _material, CopyLevelPass);
                     }
+                    
+                    width = Mathf.FloorToInt(width / 2.0f);
+                    height = Mathf.FloorToInt(height / 2.0f);
                 }
             }
 

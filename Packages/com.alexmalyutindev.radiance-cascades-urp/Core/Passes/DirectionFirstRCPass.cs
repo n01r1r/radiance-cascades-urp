@@ -93,7 +93,7 @@ namespace AlexMalyutinDev.RadianceCascades
                         cmd.SetGlobalTexture(ShaderIds.GBuffer3, renderer.GetGBuffer(3));
                         cmd.SetGlobalTexture(ShaderIds.MinMaxDepth, _renderingData.MinMaxDepth);
                         BlitUtils.BlitTexture(cmd, _cascade0, _blitMaterial, 2);
-                        
+
                         cmd.SetRenderTarget(colorBuffer, depthBuffer);
                         BlitUtils.BlitTexture(cmd, _intermediateBuffer, _blitMaterial, 3);
                     }
@@ -102,10 +102,19 @@ namespace AlexMalyutinDev.RadianceCascades
                 else
                 {
                     // TODO: Combine into SH.
-                    _compute.CombineSH(cmd, _cascade0, _radianceSH);
+                    _compute.CombineSH(
+                        cmd,
+                        ref renderingData.cameraData,
+                        _cascade0,
+                        _renderingData.MinMaxDepth,
+                        _renderingData.VarianceDepth,
+                        _radianceSH
+                    );
 
                     cmd.BeginSample("RadianceCascade.BlitSH");
                     cmd.SetRenderTarget(colorBuffer, depthBuffer);
+                    cmd.SetGlobalMatrix("_ViewToWorld", renderingData.cameraData.GetViewMatrix().inverse);
+                    cmd.SetGlobalTexture("_MinMaxDepth", _renderingData.MinMaxDepth);
                     BlitUtils.BlitTexture(cmd, _radianceSH, _blitMaterial, 4);
                     cmd.EndSample("RadianceCascade.BlitSH");
                 }

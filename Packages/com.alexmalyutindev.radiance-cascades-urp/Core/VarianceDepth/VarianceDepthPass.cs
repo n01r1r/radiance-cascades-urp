@@ -7,6 +7,9 @@ namespace AlexMalyutinDev.RadianceCascades.VarianceDepth
 {
     public class VarianceDepthPass : ScriptableRenderPass
     {
+        private const int DepthToMomentsPass = 0;
+        private const int BlurVerticalPass = 1;
+        private const int BlurHorizontalPass = 2;
         private readonly Material _material;
         private readonly RadianceCascadesRenderingData _radianceCascadesRenderingData;
         private RTHandle _tempBuffer;
@@ -60,10 +63,12 @@ namespace AlexMalyutinDev.RadianceCascades.VarianceDepth
                 cmd.Clear();
 
                 var depthBuffer = renderingData.cameraData.renderer.cameraDepthTargetHandle;
-                cmd.SetRenderTarget(_tempBuffer);
-                BlitUtils.BlitTexture(cmd, depthBuffer, _material, 0);
                 cmd.SetRenderTarget(_radianceCascadesRenderingData.VarianceDepth);
-                BlitUtils.BlitTexture(cmd, _tempBuffer, _material, 1);
+                BlitUtils.BlitTexture(cmd, depthBuffer, _material, DepthToMomentsPass);
+                cmd.SetRenderTarget(_tempBuffer);
+                BlitUtils.BlitTexture(cmd, _radianceCascadesRenderingData.VarianceDepth, _material, BlurVerticalPass);
+                cmd.SetRenderTarget(_radianceCascadesRenderingData.VarianceDepth);
+                BlitUtils.BlitTexture(cmd, _tempBuffer, _material, BlurHorizontalPass);
             }
 
             context.ExecuteCommandBuffer(cmd);

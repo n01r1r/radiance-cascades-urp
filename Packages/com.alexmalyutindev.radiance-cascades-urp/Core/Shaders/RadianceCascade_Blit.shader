@@ -316,12 +316,12 @@ Shader "Hidden/RadianceCascade/Blit"
                     weights.z * weights.y,
                     weights.x * weights.y
                 );
-                
+
                 float2 probeDepth =
                     LinearEyeDepth(probeDepth0, _ZBufferParams) * weights.x +
                     LinearEyeDepth(probeDepth1, _ZBufferParams) * weights.y +
                     LinearEyeDepth(probeDepth2, _ZBufferParams) * weights.z +
-                    LinearEyeDepth(probeDepth3, _ZBufferParams) * weights.w; 
+                    LinearEyeDepth(probeDepth3, _ZBufferParams) * weights.w;
                 // return float4(abs(probeDepth - probeDepth0), 0, 1);
 
                 depth = LinearEyeDepth(depth, _ZBufferParams);
@@ -356,8 +356,8 @@ Shader "Hidden/RadianceCascade/Blit"
                             uv + horizontalOffset * (x + 4) - verticalOffset * y,
                             0
                         );
-        
-                        float3 direction = GetRay_DirectionFirst(float2(x, y), 0);
+
+                        float3 direction = GetRayDirectionDFWS(float2(x, y), 0);
                         float NdotL = dot(direction, normalWS);
                         float4 radiance = lerp(radianceMin, radianceMax, depthWeight);
                         color += radiance * max(0, NdotL);
@@ -455,7 +455,7 @@ Shader "Hidden/RadianceCascade/Blit"
             Name "BlitSH"
             ZTest Off
             ZWrite Off
-            Blend One Zero
+            Blend One One
 
             HLSLPROGRAM
             #pragma vertex Vertex
@@ -466,20 +466,16 @@ Shader "Hidden/RadianceCascade/Blit"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Common.hlsl"
 
+            float4 _BlitTexture_TexelSize;
             TEXTURE2D_X(_BlitTexture);
             TEXTURE2D(_MinMaxDepth);
 
             TEXTURE2D(_GBuffer0); // Color
-            TEXTURE2D(_GBuffer1); // Color
             TEXTURE2D(_GBuffer2); // Normals
-            TEXTURE2D(_GBuffer3); // Emmision
-            float4 _BlitTexture_TexelSize;
-            float3 _CameraForward;
 
             struct Attributes
             {
@@ -510,35 +506,119 @@ Shader "Hidden/RadianceCascade/Blit"
                 return output;
             }
 
-
-            half4 Fragment(Varyings input) : SV_TARGET
+            // The bilateral upscale function (2x2 neighborhood, color4 version)
+            float4 BilUpColor(
+                float HiDepth,
+                float4 LowDepths,
+                float4 lowValue0, float4 lowValue1, float4 lowValue2, float4 lowValue3,
+                float4 intialWeights
+            )
             {
-                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_PointClamp, input.texcoord, 0);
-                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
+                float _UpsampleTolerance = 1e-5f;
+                float _NoiseFilterStrength = 0.9999999f;
 
-                float4 sh0 = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f + float2(0.0f, 0.5f),
-                    0
+                float4 weights = intialWeights / (abs(HiDepth - LowDepths) + _UpsampleTolerance);
+                float TotalWeight = dot(weights, 1) + _NoiseFilterStrength;
+                float4 WeightedSum =
+                    lowValue0 * weights.x
+                    + lowValue1 * weights.y
+                    + lowValue2 * weights.z
+                    + lowValue3 * weights.w
+                    + _NoiseFilterStrength;
+                return WeightedSum / TotalWeight;
+            }
+
+            float4 SampleSHBuffer(float2 uv)
+            {
+                // TODO: Depth-guided sampling
+                return SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv, 0);
+            }
+
+            float4 SampleSH(float2 uv, float3 normalWS)
+            {
+                float2 shUV = uv * 0.5f;
+                float4 sh0 = SampleSHBuffer(shUV + float2(0.0f, 0.5f));
+                float4 shX = SampleSHBuffer(shUV + float2(0.5f, 0.5f));
+                float4 shY = SampleSHBuffer(shUV);
+                float4 shZ = SampleSHBuffer(shUV + float2(0.5f, 0.0f));
+                float3 L0L1 = SHEvalLinearL0L1(
+                    normalWS,
+                    float4(shX.r, shY.r, shZ.r, sh0.r),
+                    float4(shX.g, shY.g, shZ.g, sh0.g),
+                    float4(shX.b, shY.b, shZ.b, sh0.b)
                 );
-                float4 shX = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f + float2(0.5f, 0.5f),
-                    0
+                return float4(max(half3(0.0h, 0.0h, 0.0h), L0L1), 1.0f);
+            }
+
+            float4 SampleSH2(float2 uv, float3 normalWS)
+            {
+                float depth = Linear01Depth(SampleSceneDepth(uv), _ZBufferParams);
+
+                int2 shSize = _BlitTexture_TexelSize.zw * 0.5f;
+                int2 lowerCoords = uv * (shSize - 1);
+
+                float depth0 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerCoords, 1).x;
+                float depth1 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerCoords + int2(1, 0), 1).x;
+                float depth2 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerCoords + int2(0, 1), 1).x;
+                float depth3 = LOAD_TEXTURE2D_LOD(_MinMaxDepth, lowerCoords + int2(1, 1), 1).x;
+                float4 lowerDepth = float4(
+                    Linear01Depth(depth0, _ZBufferParams),
+                    Linear01Depth(depth1, _ZBufferParams),
+                    Linear01Depth(depth2, _ZBufferParams),
+                    Linear01Depth(depth3, _ZBufferParams)
                 );
-                float4 shY = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f,
-                    0
+
+                float2 bilinearWeights = frac(uv * (shSize - 1));
+                float4 weights = float4(bilinearWeights, 1.0f - bilinearWeights);
+                weights = float4(
+                    weights.z * weights.w,
+                    weights.x * weights.w,
+                    weights.z * weights.y,
+                    weights.x * weights.y
                 );
-                float4 shZ = SAMPLE_TEXTURE2D_LOD(
-                    _BlitTexture,
-                    sampler_LinearClamp,
-                    input.texcoord * 0.5f + float2(0.5f, 0.0f),
-                    0
+
+                lowerCoords.y += shSize.y;
+                float4 sh0 = BilUpColor(
+                    depth,
+                    lowerDepth,
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 0)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(0, 1)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 1)),
+                    weights
+                );
+
+                lowerCoords.x += shSize.x;
+                float4 shX = BilUpColor(
+                    depth,
+                    lowerDepth,
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 0)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(0, 1)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 1)),
+                    weights
+                );
+
+                lowerCoords -= shSize;
+                float4 shY = BilUpColor(
+                    depth,
+                    lowerDepth,
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 0)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(0, 1)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 1)),
+                    weights
+                );
+
+                lowerCoords.x += shSize.x;
+                float4 shZ = BilUpColor(
+                    depth,
+                    lowerDepth,
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 0)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(0, 1)),
+                    LOAD_TEXTURE2D(_BlitTexture, lowerCoords + int2(1, 1)),
+                    weights
                 );
 
                 float3 L0L1 = SHEvalLinearL0L1(
@@ -547,8 +627,14 @@ Shader "Hidden/RadianceCascade/Blit"
                     float4(shX.g, shY.g, shZ.g, sh0.g),
                     float4(shX.b, shY.b, shZ.b, sh0.b)
                 );
-                float4 radiance = float4(L0L1, 1.0f);
+                return float4(max(half3(0.0h, 0.0h, 0.0h), L0L1), 1.0f);
+            }
 
+            half4 Fragment(Varyings input) : SV_TARGET
+            {
+                half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_LinearClamp, input.texcoord, 0);
+                float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
+                float4 radiance = SampleSH2(input.texcoord, normalize(normalWS));
                 return radiance * gbuffer0;
             }
             ENDHLSL
