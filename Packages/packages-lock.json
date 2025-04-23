@@ -1,5 +1,13 @@
 {
   "dependencies": {
+    "com.alexmalyutindev.radiance-cascades-urp": {
+      "version": "file:com.alexmalyutindev.radiance-cascades-urp",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.render-pipelines.universal": "14.0.10"
+      }
+    },
     "com.unity.burst": {
       "version": "1.8.17",
       "depth": 1,
@@ -96,7 +104,7 @@
       "dependencies": {
         "com.unity.render-pipelines.universal": "14.0.10"
       },
-      "hash": "fe3af33c704a26e5e0a21a6fd8c992b2bfb09f0b"
+      "hash": "5665fb87d07b2943424eab5827f76d74f314de9d"
     },
     "com.unity.test-framework": {
       "version": "1.1.33",
