@@ -65,7 +65,7 @@ namespace AlexMalyutinDev.RadianceCascades.VarianceDepth
 
             passData.VarianceDepth = renderGraph.CreateTexture(desc);
             varianceDepthData.VarianceDepth = passData.VarianceDepth;
-            builder.UseTexture(passData.VarianceDepth);
+            builder.UseTexture(passData.VarianceDepth, AccessFlags.ReadWrite);
 
             desc.name = "Temp";
             passData.TempBuffer = builder.CreateTransientTexture(desc);
