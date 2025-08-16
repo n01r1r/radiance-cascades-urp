@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
 namespace AlexMalyutinDev.RadianceCascades
@@ -20,14 +21,16 @@ namespace AlexMalyutinDev.RadianceCascades
         }
 
         public void RenderMerge(
-            CommandBuffer cmd,
-            ref CameraData cameraData,
-            RTHandle depth,
-            RTHandle minMaxDepth,
-            RTHandle varianceDepth,
-            RTHandle blurredColor,
+            ComputeCommandBuffer cmd,
+            ref UniversalCameraData cameraData,
+            TextureHandle depth,
+            TextureHandle minMaxDepth,
+            TextureHandle varianceDepth,
+            Vector4 varianceDepthSizeTexel,
+            TextureHandle blurredColor,
             float rayScale,
-            ref RTHandle target
+            ref TextureHandle target,
+            Vector4 targetSizeTexel
         )
         {
             var kernel = _renderAndMergeKernel;
@@ -36,41 +39,30 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.BeginSample("RadianceCascade.RenderMerge");
 
             // TODO: Remove! Only for debug purpose!
-            cmd.SetRenderTarget(target);
-            cmd.ClearRenderTarget(false, true, Color.clear);
+            // cmd.SetRenderTarget(target);
+            // cmd.ClearRenderTarget(false, true, Color.clear);
 
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.DepthTexture, depth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.BlurredColor, blurredColor);
 
-            cmd.SetComputeVectorParam(
-                _compute,
-                ShaderIds.VarianceDepthSize,
-                new Vector4(varianceDepth.rt.width, varianceDepth.rt.height)
-            );
+            cmd.SetComputeVectorParam(_compute, ShaderIds.VarianceDepthSize, varianceDepthSizeTexel);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
 
-            var targetRT = target.rt;
-            var cascadeBufferSize = new Vector4(
-                targetRT.width,
-                targetRT.height,
-                1.0f / targetRT.width,
-                1.0f / targetRT.height
-            );
-            cmd.SetComputeVectorParam(_compute, ShaderIds.CascadeBufferSize, cascadeBufferSize);
+            cmd.SetComputeVectorParam(_compute, ShaderIds.CascadeBufferSize, targetSizeTexel);
             cmd.SetComputeTextureParam(_compute, kernel, "_RadianceCascades", target);
 
             cmd.SetComputeMatrixParam(_compute, "_WorldToView", cameraData.GetViewMatrix());
             cmd.SetComputeMatrixParam(_compute, "_ViewToWorld", cameraData.GetViewMatrix().inverse);
-            cmd.SetComputeMatrixParam(_compute, "_ViewToHClip", cameraData.GetGPUProjectionMatrix());
+            cmd.SetComputeMatrixParam(_compute, "_ViewToHClip", cameraData.GetProjectionMatrix());
 
             cmd.SetComputeFloatParam(_compute, "_RayScale", rayScale);
 
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)
             {
                 Vector4 probesCount = new Vector4(
-                    Mathf.FloorToInt(cascadeBufferSize.x / (8 * 1 << cascadeLevel)),
-                    Mathf.FloorToInt(cascadeBufferSize.y / (8 * 1 << cascadeLevel))
+                    Mathf.FloorToInt(targetSizeTexel.x / (8 * 1 << cascadeLevel)),
+                    Mathf.FloorToInt(targetSizeTexel.y / (8 * 1 << cascadeLevel))
                 );
                 cmd.SetComputeVectorParam(_compute, "_ProbesCount", probesCount);
 
@@ -81,8 +73,8 @@ namespace AlexMalyutinDev.RadianceCascades
                 cmd.DispatchCompute(
                     _compute,
                     kernel,
-                    Mathf.CeilToInt(cascadeBufferSize.x / 2 / x),
-                    Mathf.CeilToInt(cascadeBufferSize.y / (y * (1 << cascadeLevel))),
+                    Mathf.CeilToInt(targetSizeTexel.x / 2 / x),
+                    Mathf.CeilToInt(targetSizeTexel.y / (y * (1 << cascadeLevel))),
                     1
                 );
             }

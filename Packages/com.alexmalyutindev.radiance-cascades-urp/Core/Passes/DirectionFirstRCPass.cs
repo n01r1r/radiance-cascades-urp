@@ -1,6 +1,10 @@
 using System;
+using AlexMalyutinDev.RadianceCascades.BlurredColorBuffer;
+using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
+using AlexMalyutinDev.RadianceCascades.VarianceDepth;
 using InternalBridge;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
@@ -30,9 +34,93 @@ namespace AlexMalyutinDev.RadianceCascades
             _renderingData = renderingData;
         }
 
+        private class PassData
+        {
+            public RadianceCascadesDirectionFirstCS Compute;
+
+            public Vector4 CascadesSizeTexel;
+            public TextureHandle Cascades;
+            public Vector4 RadianceSHSizeTexel;
+            public TextureHandle RadianceSH;
+
+            public UniversalCameraData CameraData;
+
+            public TextureHandle FrameDepth;
+            public TextureHandle BlurredColor;
+            
+            public TextureHandle MinMaxDepth;
+            public Vector4 VarianceDepthSizeTexel;
+            public TextureHandle VarianceDepth;
+        }
+
         public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
         {
-            // TODO: !!!
+            var cameraData = frameData.Get<UniversalCameraData>();
+            var resourceData = frameData.Get<UniversalResourceData>();
+
+            var minMaxDepthData = frameData.Get<MinMaxDepthData>();
+            var varianceDepthData = frameData.Get<VarianceDepthData>();
+            var blurredColorData = frameData.Get<BlurredColorData>();
+
+            using var builder = renderGraph.AddComputePass<PassData>(nameof(DirectionFirstRCPass), out var passData);
+            builder.AllowPassCulling(false);
+
+            passData.CameraData = cameraData;
+
+            passData.FrameDepth = resourceData.activeDepthTexture;
+            builder.UseTexture(passData.FrameDepth);
+            passData.MinMaxDepth = minMaxDepthData.MinMaxDepth;
+            builder.UseTexture(passData.MinMaxDepth);
+
+            passData.VarianceDepthSizeTexel = GetSizeTexel(varianceDepthData.VarianceDepth, renderGraph);
+            passData.VarianceDepth = varianceDepthData.VarianceDepth;
+            builder.UseTexture(passData.VarianceDepth);
+            passData.BlurredColor = blurredColorData.BlurredColor;
+            builder.UseTexture(passData.BlurredColor);
+
+            passData.Compute = _compute;
+
+            int cascadeWidth = 2048; // cameraTextureDescriptor.width; // 2048; // 
+            int cascadeHeight = 1024; // cameraTextureDescriptor.height; // 1024; // 
+            var desc = new TextureDesc(cascadeWidth, cascadeHeight)
+            {
+                name = "RadianceCascades",
+                colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false),
+                enableRandomWrite = true,
+            };
+            passData.CascadesSizeTexel = new Vector4(
+                desc.width, desc.height,
+                1.0f / desc.width, 1.0f / desc.height
+            );
+            passData.Cascades = builder.CreateTransientTexture(desc);
+
+            desc.name = "RadianceSH";
+            desc.width = cascadeWidth / 2;
+            desc.height = cascadeHeight / 2;
+            passData.RadianceSHSizeTexel = new Vector4(
+                desc.width, desc.height,
+                1.0f / desc.width, 1.0f / desc.height
+            );
+            passData.RadianceSH = builder.CreateTransientTexture(desc);
+
+            builder.SetRenderFunc<PassData>(static (data, context) =>
+            {
+                data.Compute.RenderMerge(
+                    context.cmd,
+                    ref data.CameraData,
+                    data.FrameDepth,
+                    data.MinMaxDepth,
+                    data.VarianceDepth,
+                    data.VarianceDepthSizeTexel,
+                    data.BlurredColor,
+                    1.0f, // TODO: RayLength setting!
+                    ref data.Cascades,
+                    data.CascadesSizeTexel
+                );
+                
+                // TODO: SH
+                // TODO: Blit
+            });
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
@@ -80,16 +168,16 @@ namespace AlexMalyutinDev.RadianceCascades
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
-                _compute.RenderMerge(
-                    cmd,
-                    ref renderingData.cameraData,
-                    depthBuffer,
-                    _renderingData.MinMaxDepth,
-                    _renderingData.VarianceDepth,
-                    _renderingData.BlurredColorBuffer,
-                    radianceCascades.RayScale.value,
-                    ref _cascade0
-                );
+                // _compute.RenderMerge(
+                //     cmd,
+                //     ref renderingData.cameraData,
+                //     depthBuffer,
+                //     _renderingData.MinMaxDepth,
+                //     _renderingData.VarianceDepth,
+                //     _renderingData.BlurredColorBuffer,
+                //     radianceCascades.RayScale.value,
+                //     ref _cascade0
+                // );
 
                 if (!radianceCascades.UseSH.value)
                 {
@@ -134,6 +222,15 @@ namespace AlexMalyutinDev.RadianceCascades
         public void Dispose()
         {
             _cascade0?.Release();
+        }
+
+        private static Vector4 GetSizeTexel(TextureHandle texture, RenderGraph rg)
+        {
+            var desc = texture.GetDescriptor(rg);
+            return new Vector4(
+                desc.width, desc.height,
+                1.0f / desc.width, 1.0f / desc.height
+            );
         }
     }
 }
