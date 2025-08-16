@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace AlexMalyutinDev.RadianceCascades
 {
@@ -14,8 +15,23 @@ namespace AlexMalyutinDev.RadianceCascades
             Initialize();
             cmd.DrawMesh(s_QuadMesh, Matrix4x4.identity, material, 0, pass);
         }
+
+        public static void Blit(RasterCommandBuffer cmd, Material material, int pass)
+        {
+            Initialize();
+            cmd.DrawMesh(s_QuadMesh, Matrix4x4.identity, material, 0, pass);
+        }
         
         public static void BlitTexture(CommandBuffer cmd, Texture texture, Material material, int pass)
+        {
+            Initialize();
+            _props ??= new MaterialPropertyBlock();
+            _props.Clear();
+            _props.SetTexture(BlitTextureId, texture);
+            cmd.DrawMesh(s_QuadMesh, Matrix4x4.identity, material, 0, pass, _props);
+        }
+        
+        public static void BlitTexture(RasterCommandBuffer cmd, TextureHandle texture, Material material, int pass)
         {
             Initialize();
             _props ??= new MaterialPropertyBlock();

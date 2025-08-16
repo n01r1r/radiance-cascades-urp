@@ -83,12 +83,14 @@ namespace AlexMalyutinDev.RadianceCascades
         }
 
         public void CombineSH(
-            CommandBuffer cmd,
-            ref CameraData cameraData,
-            RTHandle cascades,
-            RTHandle minMaxDepth,
-            RTHandle varianceDepth,
-            RTHandle radianceSH
+            ComputeCommandBuffer cmd,
+            ref UniversalCameraData cameraData,
+            TextureHandle cascades,
+            Vector4 cascadesSizeTexel,
+            TextureHandle minMaxDepth,
+            TextureHandle varianceDepth,
+            ref TextureHandle radianceSH,
+            Vector4 radianceSHSizeTexel
         )
         {
             var kernel = _combineSHKernel;
@@ -97,12 +99,13 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.BeginSample("RadianceCascade.CombineSH");
 
             // TODO: Remove! Only for debug purpose!
-            cmd.SetRenderTarget(radianceSH);
+            // cmd.SetRenderTarget(radianceSH);
 
             Vector4 probesCount = new Vector4(
-                Mathf.FloorToInt(cascades.rt.width / 4),
-                Mathf.FloorToInt(cascades.rt.height / 4)
+                Mathf.FloorToInt(cascadesSizeTexel.x / 4),
+                Mathf.FloorToInt(cascadesSizeTexel.y / 4)
             );
+            // TODO: Replace props names with ids!
             cmd.SetComputeVectorParam(_compute, "_ProbesCount", probesCount);
             cmd.SetComputeMatrixParam(_compute, "_ViewToWorld", cameraData.GetViewMatrix().inverse);
 
@@ -112,8 +115,8 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeTextureParam(_compute, kernel, "_RadianceSH", radianceSH);
 
 
-            int width = radianceSH.rt.width / 2;
-            int height = radianceSH.rt.height / 2;
+            int width = Mathf.FloorToInt(radianceSHSizeTexel.x) / 2;
+            int height = Mathf.FloorToInt(radianceSHSizeTexel.y) / 2;
             cmd.DispatchCompute(_compute, kernel, width / 8, height / 4, 1);
             cmd.EndSample("RadianceCascade.CombineSH");
         }
