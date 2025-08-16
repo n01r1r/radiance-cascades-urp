@@ -2,6 +2,7 @@ using System;
 using InternalBridge;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
 namespace AlexMalyutinDev.RadianceCascades
@@ -27,6 +28,11 @@ namespace AlexMalyutinDev.RadianceCascades
             // TODO: Make proper C# wrapper for Blit/Combine shader!
             _blitMaterial = resources.BlitMaterial;
             _renderingData = renderingData;
+        }
+
+        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            // TODO: !!!
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)

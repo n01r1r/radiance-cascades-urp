@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
 namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
@@ -22,6 +23,11 @@ namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
             profilingSampler = new ProfilingSampler(nameof(BlurredColorBufferPass));
             _material = material;
             _radianceCascadesRenderingData = radianceCascadesRenderingData;
+        }
+
+        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            // TODO: !!!
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)

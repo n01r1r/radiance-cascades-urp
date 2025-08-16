@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
 namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
@@ -27,6 +28,11 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
             profilingSampler = new ProfilingSampler(nameof(MinMaxDepthPass));
             _material = minMaxDepthMaterial;
             _renderingData = renderingData;
+        }
+
+        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            // TODO: !!!
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)

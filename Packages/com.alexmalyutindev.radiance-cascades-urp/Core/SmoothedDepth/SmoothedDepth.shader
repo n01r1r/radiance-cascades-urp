@@ -18,7 +18,6 @@ Shader "Hidden/SmoothedDepth"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             Texture2D<float> _BlitTexture;
@@ -81,7 +80,6 @@ Shader "Hidden/SmoothedDepth"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             Texture2D<float> _BlitTexture;

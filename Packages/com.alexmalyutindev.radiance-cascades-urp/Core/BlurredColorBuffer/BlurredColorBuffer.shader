@@ -19,7 +19,6 @@ Shader "Hidden/BlurredColorBuffer"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             Texture2D<float4> _BlitTexture;
@@ -79,7 +78,6 @@ Shader "Hidden/BlurredColorBuffer"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             Texture2D<float4> _BlitTexture;
@@ -138,7 +136,6 @@ Shader "Hidden/BlurredColorBuffer"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             Texture2D<float4> _BlitTexture;
@@ -197,7 +194,6 @@ Shader "Hidden/BlurredColorBuffer"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
-            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/GlobalSamplers.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             Texture2D<float4> _BlitTexture;
