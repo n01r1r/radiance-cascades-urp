@@ -1,7 +1,4 @@
-using AlexMalyutinDev.RadianceCascades.BlurredColorBuffer;
-using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
 using AlexMalyutinDev.RadianceCascades.SmoothedDepth;
-using AlexMalyutinDev.RadianceCascades.VarianceDepth;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -64,7 +61,7 @@ namespace AlexMalyutinDev.RadianceCascades
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
             };
-            _directionFirstRcPass = new DirectionFirstRCPass(Resources, _radianceCascadesRenderingData)
+            _directionFirstRcPass = new DirectionFirstRCPass(Resources)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights,
             };
@@ -84,6 +81,7 @@ namespace AlexMalyutinDev.RadianceCascades
                 return;
             }
 
+            // TODO: Refactor render target size! Only used in MinMaxDepthPass and BlurredColorBufferPass!
             _radianceCascadesRenderingData.Cascade0Size = new Vector2Int(2048 / 8, 1024 / 8);
 
             if (renderType == RenderingType.Simple2dProbes)

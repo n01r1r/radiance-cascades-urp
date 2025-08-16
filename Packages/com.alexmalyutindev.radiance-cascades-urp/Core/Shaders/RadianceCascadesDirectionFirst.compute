@@ -80,7 +80,7 @@ inline float3 TransformViewToScreenUV(float3 positionVS)
 {
     float4 positionCS = mul(_ViewToHClip, float4(positionVS, 1));
     positionCS.xyz /= positionCS.w;
-    positionCS.xy = mad(positionCS.xy, float2(0.5f, -0.5f), float2(0.5f, 0.5f));
+    positionCS.xy = mad(positionCS.xy, float2(0.5f, 0.5f), float2(0.5f, 0.5f));
     return positionCS.xyz;
 }
 
