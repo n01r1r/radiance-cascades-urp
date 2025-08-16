@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
-namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
+namespace AlexMalyutinDev.RadianceCascades
 {
     public class MinMaxDepthData : ContextItem
     {
@@ -16,7 +16,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
             MinMaxDepth = TextureHandle.nullHandle;
         }
     }
-    
+
     public class MinMaxDepthPass : ScriptableRenderPass, IDisposable
     {
         private const int MinMaxOriginalDepthPass = 0;
@@ -31,8 +31,6 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
 
         private readonly Material _material;
         private readonly RadianceCascadesRenderingData _renderingData;
-
-        private RTHandle _tempMinMaxDepth;
 
         public MinMaxDepthPass(Material minMaxDepthMaterial, RadianceCascadesRenderingData renderingData)
         {
@@ -130,7 +128,7 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
                         cmd.SetGlobalFloat(ScaleId, 1 << (mipLevel - 1));
                         BlitUtils.BlitTexture(cmd, data.MinMaxDepth, data.Material, MinMaxDepthMipPass);
                         cmd.DisableScissorRect();
-                        
+
                         cmd.SetRenderTarget(data.MinMaxDepth, mipLevel);
                         BlitUtils.BlitTexture(cmd, data.IntermediateDownsampleBuffer, data.Material, CopyLevelPass);
                     }
@@ -141,9 +139,6 @@ namespace AlexMalyutinDev.RadianceCascades.MinMaxDepth
             });
         }
 
-        public void Dispose()
-        {
-            _renderingData.MinMaxDepth?.Release();
-        }
+        public void Dispose() { }
     }
 }

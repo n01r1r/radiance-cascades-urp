@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
-namespace AlexMalyutinDev.RadianceCascades.BlurredColorBuffer
+namespace AlexMalyutinDev.RadianceCascades
 {
     public class BlurredColorData : ContextItem
     {

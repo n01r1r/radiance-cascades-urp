@@ -1,7 +1,4 @@
 using System;
-using AlexMalyutinDev.RadianceCascades.BlurredColorBuffer;
-using AlexMalyutinDev.RadianceCascades.MinMaxDepth;
-using AlexMalyutinDev.RadianceCascades.VarianceDepth;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -15,10 +12,7 @@ namespace AlexMalyutinDev.RadianceCascades
         private readonly RadianceCascadesDirectionFirstCS _compute;
         private readonly Material _blitMaterial;
 
-        public DirectionFirstRCPass(
-            RadianceCascadeResources resources,
-            RadianceCascadesRenderingData renderingData
-        )
+        public DirectionFirstRCPass(RadianceCascadeResources resources)
         {
             profilingSampler = new ProfilingSampler("RadianceCascades.DirectionFirst");
             _compute = new RadianceCascadesDirectionFirstCS(resources.RadianceCascadesDirectionalFirstCS);

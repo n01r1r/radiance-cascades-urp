@@ -114,7 +114,6 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
             cmd.SetComputeTextureParam(_compute, kernel, "_RadianceSH", radianceSH);
 
-
             int width = Mathf.FloorToInt(radianceSHSizeTexel.x) / 2;
             int height = Mathf.FloorToInt(radianceSHSizeTexel.y) / 2;
             cmd.DispatchCompute(_compute, kernel, width / 8, height / 4, 1);
