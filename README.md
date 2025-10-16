@@ -1,26 +1,20 @@
-Radiance Cascades for Unity's URP
-===
+# Radiance Cascades URP Enhanced
 
-This project is a recreation of Alexander Sannikov's Radiance Cascades technique in Unity with an attempt to generalize it for 3D case.
+Enhanced version of Alexander Malyutin's Radiance Cascades with Unity 6 compatibility and additional features.
 
-# WIP
+## Features
+- Unity 6 URP compatibility
+- Material conversion tools
+- CornellBox & Sponza example scenes
+- Enhanced voxelization system
 
-### Direction first probes
-![radiance-cascades-preview](./Pictures/direction-first-sponza.png)
+## Installation
+1. Add this package to your Unity project via Package Manager
+2. Open Examples/Scenes/CornellBox.unity or Sponza.unity
+3. Use Tools/RC menu for material conversion and scene setup
 
-### 3D Probes
-![radiance-cascades-preview-sponza](./Pictures/radiance-cascades-preview-sponza.png)
+## Original Repository
+Based on: https://github.com/alexmalyutindev/radiance-cascades-urp
 
-### Simple 2D ScreenSpace probes
-![radiance-cascades-preview](./Pictures/radiance-cascades-preview.png)
-
-
-References
-----------
-- [Radiance Cascades: A Novel High-Resolution Formal Solution for Multidimensional Non-LTE Radiative Transfer](https://arxiv.org/abs/2408.14425)
-- [Youssef-Afella/RadianceCascadesUnity](https://github.com/Youssef-Afella/RadianceCascadesUnity)
-- https://radiance-cascades.com/
-
-License
--------
-This project is MIT License - see the [LICENSE](LICENSE) file for details
+## License
+MIT License - see LICENSE file for details
