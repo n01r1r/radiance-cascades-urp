@@ -1,10 +1,10 @@
 {
-    "name":  "com.alexmalyutindev.radiance-cascades-urp",
-    "displayName":  "Radiance Cascades URP",
-    "version":  "0.0.1-enhanced.1",
-    "description":  "Enhanced Radiance Cascades with Unity 6 compatibility, material tools, and example scenes",
-    "unity":  "2022.3",
-    "dependencies":  {
-                         "com.unity.render-pipelines.universal":  "14.0.10"
-                     }
+  "name": "com.alexmalyutindev.radiance-cascades-urp",
+  "displayName": "Radiance Cascades URP",
+  "version": "0.0.1",
+  "description": "TODO:",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "14.0.10"
+  }
 }
