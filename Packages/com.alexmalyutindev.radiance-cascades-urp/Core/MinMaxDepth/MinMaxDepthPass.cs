@@ -74,10 +74,10 @@ namespace AlexMalyutinDev.RadianceCascades
             passData.TargetResolution = new Vector4(targetWidth, targetHeight);
             passData.TargetMipsCount = (int)Mathf.Log(targetHeight, 2);
 
-            var desc = new TextureDesc(targetWidth, targetHeight)
+            var desc = new UnityEngine.Rendering.RenderGraphModule.TextureDesc(targetWidth, targetHeight)
             {
                 name = "MinMaxDepth",
-                colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RGFloat, false),
+                colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32G32_SFloat,
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Point,
                 useMipMap = true,
@@ -89,7 +89,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
             if (SystemInfo.graphicsDeviceType is not (GraphicsDeviceType.Metal or GraphicsDeviceType.Vulkan))
             {
-                desc.name = "Temp";
+                // Remove .name assignment as it's not supported in Unity 6
                 desc.width >>= 1;
                 desc.height >>= 1;
                 desc.useMipMap = false;

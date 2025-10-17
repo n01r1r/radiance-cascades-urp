@@ -85,11 +85,10 @@ namespace AlexMalyutinDev.RadianceCascades.Voxelization
                 dimension = TextureDimension.Tex3D,
                 volumeDepth = resolution,
                 enableRandomWrite = true,
-                mipCount = 0,
-                depthStencilFormat = GraphicsFormat.None,
+                depthBufferBits = 0,
             };
             // TODO: Clear Volume!
-            RenderingUtils.ReAllocateIfNeeded(ref targetVolume, volumeDesc);
+            RenderingUtils.ReAllocateHandleIfNeeded(ref targetVolume, volumeDesc);
             _voxelizatorCompute.ClearTexture3d(cmd, targetVolume);
 
 

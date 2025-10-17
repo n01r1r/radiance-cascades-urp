@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4ce0479d6ea4d39bda82c925c0f187c, type: 3}
+  m_Name: RadianceCascadeResources
+  m_EditorClassIdentifier: 
+  voxelizatorCompute: {fileID: 0}
+  radianceCascades3dCompute: {fileID: 0}
+  voxelizatorShader: {fileID: 0}
+  rcCompositeShader: {fileID: 0}
+  voxelizatorMaterial: {fileID: 0}
+  rcCompositeMaterial: {fileID: 0}
+  voxelDataBuffer: {fileID: 0}

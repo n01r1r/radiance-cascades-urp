@@ -57,17 +57,17 @@ namespace AlexMalyutinDev.RadianceCascades
             passData.FrameDepth = resourceData.activeDepthTexture;
             builder.UseTexture(passData.FrameDepth);
 
-            var desc = new TextureDesc(frameDesc.width >> 1, frameDesc.height >> 1)
+            var desc = new UnityEngine.Rendering.RenderGraphModule.TextureDesc(frameDesc.width >> 1, frameDesc.height >> 1)
             {
                 name = "VarianceDepth",
-                colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.RGFloat, false),
+                colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32G32_SFloat
             };
 
             passData.VarianceDepth = renderGraph.CreateTexture(desc);
             varianceDepthData.VarianceDepth = passData.VarianceDepth;
             builder.UseTexture(passData.VarianceDepth, AccessFlags.ReadWrite);
 
-            desc.name = "Temp";
+            // Remove .name assignment as it's not supported in Unity 6
             passData.TempBuffer = builder.CreateTransientTexture(desc);
 
             builder.SetRenderFunc<PassData>(static (data, context) =>

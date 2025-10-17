@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
+ // ✅ Unity 6 RG API
 using UnityEngine.Rendering.Universal;
 
 namespace AlexMalyutinDev.RadianceCascades.HiZDepth
@@ -9,9 +10,7 @@ namespace AlexMalyutinDev.RadianceCascades.HiZDepth
     public class HiZDepthPass : ScriptableRenderPass, IDisposable
     {
         private readonly Material _material;
-        private RTHandle _hiZDepth;
-        private RTHandle _tempDepth;
-        private ComputeShader _hiZDepthCS;
+        private readonly ComputeShader _hiZDepthCS;
 
         public HiZDepthPass(Material hiZDepthMaterial, ComputeShader hiZDepthCS)
         {
@@ -20,102 +19,82 @@ namespace AlexMalyutinDev.RadianceCascades.HiZDepth
             _material = hiZDepthMaterial;
         }
 
-        public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
+        public override void RecordRenderGraph(UnityEngine.Rendering.RenderGraphModule.RenderGraph renderGraph, ContextContainer frameData)
         {
-            var desc = new RenderTextureDescriptor(
-                cameraTextureDescriptor.width >> 1,
-                cameraTextureDescriptor.height >> 1
-            )
-            {
-                colorFormat = RenderTextureFormat.R16,
-                depthStencilFormat = GraphicsFormat.None,
-                useMipMap = true,
-            };
-            RenderingUtils.ReAllocateIfNeeded(
-                ref _hiZDepth,
-                desc,
-                FilterMode.Point,
-                TextureWrapMode.Clamp,
-                name: "Hi-ZDepth"
-            );
+            var cameraData = frameData.Get<UniversalCameraData>();
+            var resourceData = frameData.Get<UniversalResourceData>();
 
-            desc.mipCount = 0;
-            desc.useMipMap = false;
-            RenderingUtils.ReAllocateIfNeeded(ref _tempDepth, desc);
+            RenderHiZDepth(renderGraph, frameData, cameraData, resourceData);
         }
 
-        public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
+        private class PassData
         {
-            var depth = renderingData.cameraData.renderer.cameraDepthTargetHandle;
-            // TODO: Calculate Hi-Z Depth.
+            public Material Material;
+            public ComputeShader HiZDepthCS;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle FrameDepth;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle HiZDepth;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle TempDepth;
+            public Vector4 Resolution;
+        }
 
-            var cmd = CommandBufferPool.Get();
+        private void RenderHiZDepth(UnityEngine.Rendering.RenderGraphModule.RenderGraph renderGraph, ContextContainer frameData, UniversalCameraData cameraData, UniversalResourceData resourceData)
+        {
+            using var builder = renderGraph.AddRasterRenderPass<PassData>("HiZDepth.Render", out var passData);
+            builder.AllowGlobalStateModification(true);
 
-            using (new ProfilingScope(cmd, profilingSampler))
+            passData.Material = _material;
+            passData.HiZDepthCS = _hiZDepthCS;
+
+            // Use frame depth texture
+            passData.FrameDepth = resourceData.activeDepthTexture;
+            builder.UseTexture(passData.FrameDepth);
+
+            // Create Hi-Z depth texture using TextureDesc (Unity 6 RenderGraph API)
+            var desc = new UnityEngine.Rendering.RenderGraphModule.TextureDesc(cameraData.camera.pixelWidth >> 1, cameraData.camera.pixelHeight >> 1)
             {
-                cmd.Clear();
+                name = "Hi-ZDepth",
+                colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16_UNorm,
+                enableRandomWrite = true,
+                useMipMap = true
+            };
+            passData.HiZDepth = builder.CreateTransientTexture(desc);
 
-                // cmd.SetComputeTextureParam(_hiZDepthCS, 0, "_InputDepth", depth);
-                // cmd.SetComputeTextureParam(_hiZDepthCS, 0, "_TargetDepth", _hiZDepth);
-                // cmd.DispatchCompute(
-                //     _hiZDepthCS,
-                //     0,
-                //     depth.rt.width / 8,
-                //     depth.rt.height / 8,
-                //     1
-                // );
+            // Create temp depth texture using TextureDesc (Unity 6 RenderGraph API)
+            var tempDesc = new UnityEngine.Rendering.RenderGraphModule.TextureDesc(cameraData.camera.pixelWidth >> 1, cameraData.camera.pixelHeight >> 1)
+            {
+                name = "TempDepth",
+                colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R16_UNorm,
+                enableRandomWrite = true,
+                useMipMap = false
+            };
+            passData.TempDepth = builder.CreateTransientTexture(tempDesc);
 
+            passData.Resolution = new Vector4(cameraData.camera.pixelWidth, cameraData.camera.pixelHeight);
 
-                var width = depth.rt.width;
-                var height = depth.rt.height;
+            builder.SetRenderAttachment(passData.HiZDepth, 0);
+            builder.SetRenderFunc<PassData>(static (data, context) =>
+            {
+                var width = (int)data.Resolution.x;
+                var height = (int)data.Resolution.y;
 
-                cmd.SetRenderTarget(_tempDepth);
-                cmd.SetGlobalTexture("_InputDepth", depth);
-                cmd.SetGlobalVector("_Resolution", new Vector4(width, height));
-                cmd.SetGlobalInt("_MipLevel", 0);
-                BlitUtils.Blit(cmd, _material, 0);
-                cmd.CopyTexture(_tempDepth, 0, 0, _hiZDepth, 0, 0);
-
+                context.cmd.SetGlobalTexture("_InputDepth", data.FrameDepth);
+                context.cmd.SetGlobalVector("_Resolution", new Vector4(width, height));
+                context.cmd.SetGlobalInt("_MipLevel", 0);
+                BlitUtils.Blit(context.cmd, data.Material, 0);
                 
-                cmd.SetGlobalTexture("_InputDepth", _hiZDepth);
-                
-                // TODO: Rework as MinMaxDepth Buffer.
-                for (int i = 0; i < _hiZDepth.rt.mipmapCount - 1; i++)
+                // Generate mipmaps
+                for (int i = 0; i < 8; i++) // Assuming max 8 mip levels
                 {
                     width >>= 1;
                     height >>= 1;
-                    cmd.SetGlobalInt("_MipLevel", i);
-                    BlitUtils.Blit(cmd, _material, 0);
-                    cmd.CopyTexture(
-                        _tempDepth,
-                        0,
-                        0,
-                        0,
-                        0,
-                        width >> 1,
-                        height >> 1,
-                        _hiZDepth,
-                        0,
-                        i + 1,
-                        0,
-                        0
-                    );
+                    if (width <= 0 || height <= 0) break;
+                    
+                    context.cmd.SetGlobalInt("_MipLevel", i);
+                    BlitUtils.Blit(context.cmd, data.Material, 0);
                 }
-
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
-            }
-
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
-            
-            CommandBufferPool.Release(cmd);
+            });
         }
 
-        public void Dispose()
-        {
-            _tempDepth?.Release();
-            _hiZDepth?.Release();
-        }
+        public void Dispose() { }
     }
 }

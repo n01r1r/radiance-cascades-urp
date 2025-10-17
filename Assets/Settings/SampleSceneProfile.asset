@@ -69,6 +69,33 @@ MonoBehaviour:
   UseSH:
     m_OverrideState: 0
     m_Value: 0
+  VolumeResolution:
+    m_OverrideState: 0
+    m_Value: 64
+  CascadeCount:
+    m_OverrideState: 0
+    m_Value: 3
+  EnableBetaPropagation:
+    m_OverrideState: 0
+    m_Value: 1
+  PropagationRadius:
+    m_OverrideState: 0
+    m_Value: 1
+  EnableFrontToBackMerge:
+    m_OverrideState: 0
+    m_Value: 1
+  HighPrecisionRadiance:
+    m_OverrideState: 0
+    m_Value: 1
+  EnableProfiling:
+    m_OverrideState: 0
+    m_Value: 0
+  DebugSlice:
+    m_OverrideState: 0
+    m_Value: 0.5
+  ShowMemoryUsage:
+    m_OverrideState: 0
+    m_Value: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -137,13 +164,40 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f785b9c6c3da41ffa4e2a431a68bd759, type: 3}
   m_Name: RadianceCascades
   m_EditorClassIdentifier: 
-  active: 1
+  active: 0
   RenderingType:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0
   RayScale:
     m_OverrideState: 1
-    m_Value: 0.2
+    m_Value: 0.65
   UseSH:
     m_OverrideState: 1
     m_Value: 1
+  VolumeResolution:
+    m_OverrideState: 0
+    m_Value: 64
+  CascadeCount:
+    m_OverrideState: 0
+    m_Value: 3
+  EnableBetaPropagation:
+    m_OverrideState: 0
+    m_Value: 1
+  PropagationRadius:
+    m_OverrideState: 0
+    m_Value: 1
+  EnableFrontToBackMerge:
+    m_OverrideState: 0
+    m_Value: 1
+  HighPrecisionRadiance:
+    m_OverrideState: 0
+    m_Value: 1
+  EnableProfiling:
+    m_OverrideState: 0
+    m_Value: 0
+  DebugSlice:
+    m_OverrideState: 0
+    m_Value: 0.5
+  ShowMemoryUsage:
+    m_OverrideState: 0
+    m_Value: 0
