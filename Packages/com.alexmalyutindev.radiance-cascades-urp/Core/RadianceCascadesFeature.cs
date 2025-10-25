@@ -11,11 +11,8 @@ namespace AlexMalyutinDev.RadianceCascades
 
         public bool showDebugView;
 
-        private RC2dPass _rc2dPass;
-        private RadianceCascades3dPass _radianceCascadesPass3d;
+        // Only DirectionFirst Probes - removed all other rendering types
         private DirectionFirstRCPass _directionFirstRcPass;
-        private VoxelizationPass _voxelizationPass;
-
         private MinMaxDepthPass _minMaxDepthPass;
         private SmoothedDepthPass _smoothedDepthPass;
         private VarianceDepthPass _varianceDepthPass;
@@ -27,21 +24,7 @@ namespace AlexMalyutinDev.RadianceCascades
         {
             _radianceCascadesRenderingData = new RadianceCascadesRenderingData();
 
-            _rc2dPass = new RC2dPass(Resources, showDebugView)
-            {
-                renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
-            };
-
-            _voxelizationPass = new VoxelizationPass(Resources, _radianceCascadesRenderingData)
-            {
-                renderPassEvent = RenderPassEvent.AfterRenderingShadows,
-            };
-            _radianceCascadesPass3d = new RadianceCascades3dPass(Resources, _radianceCascadesRenderingData)
-            {
-                renderPassEvent = RenderPassEvent.AfterRenderingDeferredLights
-            };
-
-            // Direction First Passes
+            // Direction First Passes only
             _minMaxDepthPass = new MinMaxDepthPass(Resources.MinMaxDepthMaterial, _radianceCascadesRenderingData)
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingGbuffer
@@ -69,32 +52,28 @@ namespace AlexMalyutinDev.RadianceCascades
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            if (renderingData.cameraData.isPreviewCamera)
-            {
-                return;
-            }
-
+            // Unity 6: Enqueue RenderGraph passes here
             var volume = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
-            var renderType = volume.RenderingType.value;
-            if (!volume.active || renderType == RenderingType.None)
+            if (volume == null || !volume.active)
             {
                 return;
             }
+            
+            var renderType = volume.RenderingType.value;
+            if (renderType == RenderingType.None)
+            {
+                return;
+            }
+            
+            Debug.Log($"RadianceCascades: Enqueuing DirectionFirst Probes passes");
 
             // TODO: Refactor render target size! Only used in MinMaxDepthPass and BlurredColorBufferPass!
             _radianceCascadesRenderingData.Cascade0Size = new Vector2Int(2048 / 8, 1024 / 8);
 
-            if (renderType == RenderingType.Simple2dProbes)
+            // Only DirectionFirst Probes - perfect for APV comparison
+            if (renderType == RenderingType.DirectionFirstProbes)
             {
-                renderer.EnqueuePass(_rc2dPass);
-            }
-            else if (renderType == RenderingType.CubeMapProbes)
-            {
-                renderer.EnqueuePass(_voxelizationPass);
-                renderer.EnqueuePass(_radianceCascadesPass3d);
-            }
-            else if (renderType == RenderingType.DirectionFirstProbes)
-            {
+                Debug.Log("RadianceCascades: Enqueuing Direction-First Probes passes");
                 renderer.EnqueuePass(_minMaxDepthPass);
                 renderer.EnqueuePass(_varianceDepthPass);
                 renderer.EnqueuePass(_blurredColorBufferPass);
@@ -104,10 +83,10 @@ namespace AlexMalyutinDev.RadianceCascades
 
         protected override void Dispose(bool disposing)
         {
-            _rc2dPass?.Dispose();
-            _radianceCascadesPass3d?.Dispose();
-            _voxelizationPass?.Dispose();
+            // Only dispose passes that implement IDisposable
             _minMaxDepthPass?.Dispose();
+            _directionFirstRcPass?.Dispose();
+            // SmoothedDepthPass, VarianceDepthPass, BlurredColorBufferPass don't implement IDisposable
         }
     }
 }

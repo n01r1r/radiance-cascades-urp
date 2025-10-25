@@ -4,7 +4,6 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         None = 0,
         DirectionFirstProbes = 1,
-        Simple2dProbes = 2,
-        CubeMapProbes = 3,
+        // Other rendering types removed - keeping only DirectionFirst for APV comparison
     }
 }

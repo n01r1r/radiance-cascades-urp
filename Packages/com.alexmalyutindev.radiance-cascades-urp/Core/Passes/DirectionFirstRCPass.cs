@@ -2,8 +2,8 @@ using System;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
-using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
+ // ✅ RenderGraph, TextureHandle, *GraphContext
 
 namespace AlexMalyutinDev.RadianceCascades
 {
@@ -20,7 +20,7 @@ namespace AlexMalyutinDev.RadianceCascades
             _blitMaterial = resources.BlitMaterial;
         }
 
-        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        public override void RecordRenderGraph(UnityEngine.Rendering.RenderGraphModule.RenderGraph renderGraph, ContextContainer frameData)
         {
             RenderCascades(renderGraph, frameData, out var sh);
             CombineCascades(renderGraph, frameData, sh);
@@ -32,21 +32,21 @@ namespace AlexMalyutinDev.RadianceCascades
             public float RayLength;
 
             public Vector4 CascadesSizeTexel;
-            public TextureHandle Cascades;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle Cascades;
             public Vector4 RadianceSHSizeTexel;
-            public TextureHandle RadianceSH;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle RadianceSH;
 
             public UniversalCameraData CameraData;
 
-            public TextureHandle FrameDepth;
-            public TextureHandle BlurredColor;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle FrameDepth;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle BlurredColor;
 
-            public TextureHandle MinMaxDepth;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle MinMaxDepth;
             public Vector4 VarianceDepthSizeTexel;
-            public TextureHandle VarianceDepth;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle VarianceDepth;
         }
 
-        private void RenderCascades(RenderGraph renderGraph, ContextContainer frameData, out TextureHandle radianceSH)
+        private void RenderCascades(UnityEngine.Rendering.RenderGraphModule.RenderGraph renderGraph, ContextContainer frameData, out UnityEngine.Rendering.RenderGraphModule.TextureHandle radianceSH)
         {
             var cameraData = frameData.Get<UniversalCameraData>();
             var resourceData = frameData.Get<UniversalResourceData>();
@@ -78,11 +78,11 @@ namespace AlexMalyutinDev.RadianceCascades
 
             int cascadeWidth = 2048; // cameraTextureDescriptor.width; // 2048; // 
             int cascadeHeight = 1024; // cameraTextureDescriptor.height; // 1024; // 
-            var desc = new TextureDesc(cascadeWidth, cascadeHeight)
+            var desc = new UnityEngine.Rendering.RenderGraphModule.TextureDesc(cascadeWidth, cascadeHeight)
             {
                 name = "RadianceCascades",
-                colorFormat = GraphicsFormatUtility.GetGraphicsFormat(RenderTextureFormat.ARGBFloat, false),
-                enableRandomWrite = true,
+                colorFormat = UnityEngine.Experimental.Rendering.GraphicsFormat.R32G32B32A32_SFloat,
+                enableRandomWrite = true
             };
             passData.CascadesSizeTexel = new Vector4(
                 desc.width, desc.height,
@@ -90,7 +90,6 @@ namespace AlexMalyutinDev.RadianceCascades
             );
             passData.Cascades = builder.CreateTransientTexture(desc);
 
-            desc.name = "RadianceSH";
             desc.width = cascadeWidth / 2;
             desc.height = cascadeHeight / 2;
             passData.RadianceSHSizeTexel = new Vector4(
@@ -98,7 +97,7 @@ namespace AlexMalyutinDev.RadianceCascades
                 1.0f / desc.width, 1.0f / desc.height
             );
             passData.RadianceSH = renderGraph.CreateTexture(desc);
-            builder.UseTexture(passData.RadianceSH, AccessFlags.Write);
+            builder.UseTexture(passData.RadianceSH, UnityEngine.Rendering.RenderGraphModule.AccessFlags.Write);
 
             // TODO: Refactor!
             radianceSH = passData.RadianceSH;
@@ -136,15 +135,15 @@ namespace AlexMalyutinDev.RadianceCascades
             public Material Material;
             public UniversalCameraData CameraData;
 
-            public TextureHandle MinMaxDepth;
-            public TextureHandle RadianceSH;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle MinMaxDepth;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle RadianceSH;
 
-            public TextureHandle FrameColor;
-            public TextureHandle FrameDepth;
-            public TextureHandle FrameNormals;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle FrameColor;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle FrameDepth;
+            public UnityEngine.Rendering.RenderGraphModule.TextureHandle FrameNormals;
         }
 
-        private void CombineCascades(RenderGraph renderGraph, ContextContainer frameData, TextureHandle radianceSH)
+        private void CombineCascades(UnityEngine.Rendering.RenderGraphModule.RenderGraph renderGraph, ContextContainer frameData, UnityEngine.Rendering.RenderGraphModule.TextureHandle radianceSH)
         {
             var cameraData = frameData.Get<UniversalCameraData>();
             var resourceData = frameData.Get<UniversalResourceData>();
@@ -184,7 +183,7 @@ namespace AlexMalyutinDev.RadianceCascades
 
         public void Dispose() { }
 
-        private static Vector4 GetSizeTexel(TextureHandle texture, RenderGraph rg)
+        private static Vector4 GetSizeTexel(UnityEngine.Rendering.RenderGraphModule.TextureHandle texture, UnityEngine.Rendering.RenderGraphModule.RenderGraph rg)
         {
             var desc = texture.GetDescriptor(rg);
             return new Vector4(

@@ -47,28 +47,6 @@ MonoBehaviour:
   dirtIntensity:
     m_OverrideState: 0
     m_Value: 0
---- !u!114 &-3625508110935534741
-MonoBehaviour:
-  m_ObjectHideFlags: 3
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f785b9c6c3da41ffa4e2a431a68bd759, type: 3}
-  m_Name: RadianceCascadeVolume
-  m_EditorClassIdentifier: 
-  active: 1
-  RenderingType:
-    m_OverrideState: 1
-    m_Value: 1
-  RayScale:
-    m_OverrideState: 0
-    m_Value: 0.1
-  UseSH:
-    m_OverrideState: 0
-    m_Value: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -83,7 +61,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   components:
   - {fileID: 849379129802519247}
-  - {fileID: -7893295128165547882}
   - {fileID: 3423649682746083376}
 --- !u!114 &849379129802519247
 MonoBehaviour:
@@ -100,7 +77,7 @@ MonoBehaviour:
   active: 0
   mode:
     m_OverrideState: 1
-    m_Value: 2
+    m_Value: 1
   neutralHDRRangeReductionMode:
     m_OverrideState: 0
     m_Value: 2
@@ -143,7 +120,55 @@ MonoBehaviour:
     m_Value: 1
   RayScale:
     m_OverrideState: 1
-    m_Value: 0.2
+    m_Value: 0.109
   UseSH:
     m_OverrideState: 1
     m_Value: 1
+  VolumeResolution:
+    m_OverrideState: 1
+    m_Value: 64
+  CascadeCount:
+    m_OverrideState: 1
+    m_Value: 4
+  EnableBetaPropagation:
+    m_OverrideState: 1
+    m_Value: 1
+  PropagationRadius:
+    m_OverrideState: 1
+    m_Value: 1
+  EnableFrontToBackMerge:
+    m_OverrideState: 1
+    m_Value: 1
+  HighPrecisionRadiance:
+    m_OverrideState: 1
+    m_Value: 1
+  EnableProfiling:
+    m_OverrideState: 0
+    m_Value: 0
+  EnableAdaptiveRayScale:
+    m_OverrideState: 1
+    m_Value: 1
+  CascadeScaleFactor:
+    m_OverrideState: 1
+    m_Value: 1
+  VarianceInfluence:
+    m_OverrideState: 1
+    m_Value: 0.25
+  DepthRangeInfluence:
+    m_OverrideState: 0
+    m_Value: 0.5
+  UseOffScreenLightProbes:
+    m_OverrideState: 0
+    m_Value: 0
+  EdgeBlendDistance:
+    m_OverrideState: 0
+    m_Value: 0.1
+  OffScreenAmbient:
+    m_OverrideState: 0
+    m_Value: {r: 0.2, g: 0.2, b: 0.2, a: 1}
+  DebugSlice:
+    m_OverrideState: 0
+    m_Value: 0
+  ShowMemoryUsage:
+    m_OverrideState: 0
+    m_Value: 0

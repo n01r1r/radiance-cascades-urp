@@ -69,20 +69,20 @@ namespace AlexMalyutinDev.RadianceCascades
             passData.TargetResolution = new Vector4(targetWidth, targetHeight);
             passData.TargetMipsCount = (int)Mathf.Log(targetHeight, 2);
 
-            var desc = new TextureDesc(targetWidth, targetHeight)
+            var desc = new UnityEngine.Rendering.RenderGraphModule.TextureDesc(targetWidth, targetHeight)
             {
                 name = "BlurredColorBuffer",
-                format = frameDesc.graphicsFormat,
+                colorFormat = frameDesc.graphicsFormat,
                 wrapMode = TextureWrapMode.Clamp,
                 filterMode = FilterMode.Bilinear,
                 useMipMap = true,
-                autoGenerateMips = false,
+                autoGenerateMips = false
             };
             passData.BlurredColorBuffer = renderGraph.CreateTexture(desc);
             builder.UseTexture(passData.BlurredColorBuffer, AccessFlags.ReadWrite);
             blurredColorData.BlurredColor = passData.BlurredColorBuffer;
 
-            desc.name = "Temp";
+            // Remove .name assignment as it's not supported in Unity 6
             desc.width >>= 1;
             desc.height >>= 1;
             desc.useMipMap = false;
