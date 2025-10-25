@@ -52,10 +52,24 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
             GUILayout.Space(10);
             GUILayout.Label("Quick Test Buttons:", EditorStyles.boldLabel);
 
-            // Only DirectionFirst Probes - other rendering types removed
+            if (GUILayout.Button("Test Simple2D Probes (Value: 2)"))
+            {
+                SetRenderingType(RenderingType.Simple2dProbes);
+            }
+
+            if (GUILayout.Button("Test CubeMap Probes (Value: 3)"))
+            {
+                SetRenderingType(RenderingType.CubeMapProbes);
+            }
+
             if (GUILayout.Button("Test Direction-First Probes (Value: 1)"))
             {
                 SetRenderingType(RenderingType.DirectionFirstProbes);
+            }
+
+            if (GUILayout.Button("Test Probes3D (Value: 4)"))
+            {
+                SetRenderingType(RenderingType.Probes3D);
             }
 
             if (GUILayout.Button("Disable (Value: 0)"))
@@ -69,7 +83,6 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
             GUILayout.Label("2. Check Console for debug logs");
             GUILayout.Label("3. Check Frame Debugger for RC passes");
             GUILayout.Label("4. Look for visual differences in scene");
-            GUILayout.Label("5. Perfect for APV comparison testing");
         }
 
         private void SetRenderingType(RenderingType type)

@@ -31,10 +31,9 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
             GUILayout.Space(10);
             GUILayout.Label("Instructions:", EditorStyles.boldLabel);
             GUILayout.Label("1. Click 'Check Volume Components' to see current state");
-            GUILayout.Label("2. Click 'Test All Rendering Types' to test DirectionFirst Probes");
+            GUILayout.Label("2. Click 'Test All Rendering Types' to cycle through all types");
             GUILayout.Label("3. Check Console for debug logs");
             GUILayout.Label("4. Check Frame Debugger for RC passes");
-            GUILayout.Label("5. Perfect for APV comparison testing");
         }
 
         private void CheckVolumeComponents()
@@ -103,7 +102,10 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
 
             var types = new[] 
             {
-                RenderingType.DirectionFirstProbes
+                RenderingType.Simple2dProbes,
+                RenderingType.CubeMapProbes,
+                RenderingType.DirectionFirstProbes,
+                RenderingType.Probes3D
             };
 
             foreach (var type in types)
