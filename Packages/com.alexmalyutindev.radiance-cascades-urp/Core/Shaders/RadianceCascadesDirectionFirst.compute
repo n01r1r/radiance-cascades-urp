@@ -1,8 +1,11 @@
 #pragma kernel RenderAndMergeCascade
 #pragma kernel CombineSH
 
-#include "Common.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
+#include "Common.hlsl"
+
+// #define SIMPLE_RAYCASTING
 
 // #define SIMPLE_RAYCASTING
 
@@ -11,6 +14,12 @@ float _RayScale;
 int _CascadeLevel;
 float2 _ProbesCount;
 float2 _VarianceDepthSize;
+int _ImprovedCascadeBlending;
+int _OptimizedDepthSampling;
+int _EnableAdaptiveRayScale;
+float _CascadeScaleFactor;
+float _VarianceInfluence;
+float _DepthRangeInfluence;
 
 Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
@@ -82,6 +91,27 @@ inline float3 TransformViewToScreenUV(float3 positionVS)
     positionCS.xyz /= positionCS.w;
     positionCS.xy = mad(positionCS.xy, float2(0.5f, 0.5f), float2(0.5f, 0.5f));
     return positionCS.xyz;
+}
+
+float GetAdaptiveRayScale(int cascadeLevel, float2 probeUV, float baseRayScale)
+{
+    if (!_EnableAdaptiveRayScale)
+        return baseRayScale;
+    
+    // Base cascade scaling
+    float cascadeScale = lerp(0.5f, 2.0f, cascadeLevel / 5.0f);
+    
+    // Variance adjustment
+    float variance = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, probeUV, cascadeLevel + 2).x;
+    float varianceScale = lerp(1.0f + _VarianceInfluence, 1.0f - _VarianceInfluence, saturate(variance * 2.0f));
+    
+    // Depth range adjustment (NEW)
+    float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeUV * _ProbesCount, cascadeLevel + 2).xy;
+    float2 minMaxLinear = LinearEyeDepth(minMaxDepth, _ZBufferParams);
+    float depthRange = minMaxLinear.y - minMaxLinear.x;
+    float depthScale = lerp(1.0f, 1.5f, saturate(depthRange / 50.0f) * _DepthRangeInfluence);
+    
+    return baseRayScale * cascadeScale * varianceScale * depthScale * _CascadeScaleFactor;
 }
 
 float4 GetRadianceWeighted(int2 coords, float4 weights)
@@ -276,13 +306,21 @@ float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 
         // TODO: Use DDA for ray marching.
         float3 rayVS = lerp(rayOriginVS, rayEndVS, traveledDistance);
         float3 ray = TransformViewToScreenUV(rayVS);
-        if (any(ray.xy < 0 || 1 < ray.xy))
+        
+        bool isOffScreen = any(ray.xy < 0 || 1 < ray.xy);
+        float4 lighting;
+
+        if (isOffScreen)
         {
-            break;
+            break;  // Simple off-screen handling
+        }
+        else
+        {
+            // Normal on-screen sampling
+            lighting = SAMPLE_TEXTURE2D_LOD(_BlurredColor, sampler_LinearClamp, ray.xy, _CascadeLevel + 1);
         }
 
         float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
-        float4 lighting = SAMPLE_TEXTURE2D_LOD(_BlurredColor, sampler_LinearClamp, ray.xy, _CascadeLevel + 1);
 
         float rayDepth = -rayVS.z;
         float linearDepth = depthMoments.x + sqrt(max(0.0f, depthMoments.y - depthMoments.x * depthMoments.x));
@@ -359,8 +397,12 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         // TODO: Optimize math.
         float3 probeCenterWS = GetPositionWS(probeCenterUV, probeMinMaxDepth[probeDepthId]);
         float3 probeCenterVS = mul(_WorldToView, float4(probeCenterWS, 1)).xyz;
-        float3 rayOriginVS = probeCenterVS + range.x * _RayScale * directionVS;
-        float3 rayEndVS = probeCenterVS + range.y * _RayScale * directionVS;
+        
+        // Calculate adaptive ray scale
+        float adaptiveRayScale = GetAdaptiveRayScale(_CascadeLevel, probeCenterUV, _RayScale);
+        
+        float3 rayOriginVS = probeCenterVS + range.x * adaptiveRayScale * directionVS;
+        float3 rayEndVS = probeCenterVS + range.y * adaptiveRayScale * directionVS;
 
         // TODO: Calculate proper ray steps count.
         // float stepsCount = clamp(length(rayOriginCS.xy - rayEndCS.xy), 1, 200);

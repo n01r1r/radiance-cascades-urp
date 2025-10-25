@@ -36,6 +36,16 @@ namespace AlexMalyutinDev.RadianceCascades
         [Tooltip("Enable performance profiling")]
         public BoolParameter EnableProfiling = new BoolParameter(false);
 
+        [Header("Adaptive Ray Scale")]
+        [Tooltip("Enable adaptive ray scale based on cascade level and scene variance")]
+        public BoolParameter EnableAdaptiveRayScale = new BoolParameter(true);
+        [Tooltip("Cascade scaling factor (coarser cascades = longer rays)")]
+        public ClampedFloatParameter CascadeScaleFactor = new ClampedFloatParameter(1.5f, 0.5f, 3.0f);
+        [Tooltip("Variance influence on ray scale (high variance = shorter rays)")]
+        public ClampedFloatParameter VarianceInfluence = new ClampedFloatParameter(0.3f, 0.0f, 1.0f);
+        [Tooltip("Depth range influence on ray scale (larger scenes = longer rays)")]
+        public ClampedFloatParameter DepthRangeInfluence = new ClampedFloatParameter(0.5f, 0.0f, 1.0f);
+
         [Header("Debug Settings")]
         [Tooltip("Debug slice for 3D texture visualization (0-1)")]
         public ClampedFloatParameter DebugSlice = new ClampedFloatParameter(0.5f, 0f, 1f);

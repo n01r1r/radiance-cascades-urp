@@ -58,6 +58,16 @@ namespace AlexMalyutinDev.RadianceCascades
 
             cmd.SetComputeFloatParam(_compute, "_RayScale", rayScale);
 
+            // Set adaptive ray scale parameters
+            var rcSettings = VolumeManager.instance.stack.GetComponent<RadianceCascades>();
+            if (rcSettings != null)
+            {
+                cmd.SetComputeIntParam(_compute, "_EnableAdaptiveRayScale", rcSettings.EnableAdaptiveRayScale.value ? 1 : 0);
+                cmd.SetComputeFloatParam(_compute, "_CascadeScaleFactor", rcSettings.CascadeScaleFactor.value);
+                cmd.SetComputeFloatParam(_compute, "_VarianceInfluence", rcSettings.VarianceInfluence.value);
+                cmd.SetComputeFloatParam(_compute, "_DepthRangeInfluence", rcSettings.DepthRangeInfluence.value);
+            }
+
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)
             {
                 Vector4 probesCount = new Vector4(
@@ -113,6 +123,10 @@ namespace AlexMalyutinDev.RadianceCascades
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
             cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
             cmd.SetComputeTextureParam(_compute, kernel, "_RadianceSH", radianceSH);
+
+            // Quality settings
+            cmd.SetComputeIntParam(_compute, "_ImprovedCascadeBlending", 1);
+            cmd.SetComputeIntParam(_compute, "_OptimizedDepthSampling", 1);
 
             int width = Mathf.FloorToInt(radianceSHSizeTexel.x) / 2;
             int height = Mathf.FloorToInt(radianceSHSizeTexel.y) / 2;
