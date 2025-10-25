@@ -157,15 +157,6 @@ MonoBehaviour:
   DepthRangeInfluence:
     m_OverrideState: 0
     m_Value: 0.5
-  UseOffScreenLightProbes:
-    m_OverrideState: 0
-    m_Value: 0
-  EdgeBlendDistance:
-    m_OverrideState: 0
-    m_Value: 0.1
-  OffScreenAmbient:
-    m_OverrideState: 0
-    m_Value: {r: 0.2, g: 0.2, b: 0.2, a: 1}
   DebugSlice:
     m_OverrideState: 0
     m_Value: 0
