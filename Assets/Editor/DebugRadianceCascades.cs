@@ -23,15 +23,15 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
                 CheckVolumeComponents();
             }
 
-            if (GUILayout.Button("Test All Rendering Types"))
+            if (GUILayout.Button("Test Screen-Space Probes"))
             {
-                TestAllRenderingTypes();
+                TestScreenSpaceProbes();
             }
 
             GUILayout.Space(10);
             GUILayout.Label("Instructions:", EditorStyles.boldLabel);
             GUILayout.Label("1. Click 'Check Volume Components' to see current state");
-            GUILayout.Label("2. Click 'Test All Rendering Types' to cycle through all types");
+            GUILayout.Label("2. Click 'Test Screen-Space Probes' to test the screen-space approach");
             GUILayout.Label("3. Check Console for debug logs");
             GUILayout.Label("4. Check Frame Debugger for RC passes");
         }
@@ -73,9 +73,9 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
             }
         }
 
-        private void TestAllRenderingTypes()
+        private void TestScreenSpaceProbes()
         {
-            Debug.Log("=== Testing All Rendering Types ===");
+            Debug.Log("=== Testing Screen-Space Probes (Direction-First) ===");
             
             var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>("Assets/Settings/SampleSceneProfile.asset");
             if (profile == null)
@@ -100,32 +100,18 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
                 return;
             }
 
-            var types = new[] 
-            {
-                RenderingType.Simple2dProbes,
-                RenderingType.CubeMapProbes,
-                RenderingType.DirectionFirstProbes,
-                RenderingType.Probes3D
-            };
-
-            foreach (var type in types)
-            {
-                Debug.Log($"Testing {type} (Value: {(int)type})");
-                volumeComponent.RenderingType.overrideState = true;
-                volumeComponent.RenderingType.value = type;
-                volumeComponent.active = true;
-                
-                EditorUtility.SetDirty(profile);
-                
-                // Force a repaint to see the change
-                EditorApplication.RepaintHierarchyWindow();
-                EditorApplication.RepaintProjectWindow();
-                
-                // Small delay to see the change
-                System.Threading.Thread.Sleep(100);
-            }
+            Debug.Log($"Testing {RenderingType.DirectionFirstProbes} (Value: {(int)RenderingType.DirectionFirstProbes})");
+            volumeComponent.RenderingType.overrideState = true;
+            volumeComponent.RenderingType.value = RenderingType.DirectionFirstProbes;
+            volumeComponent.active = true;
             
-            Debug.Log("All rendering types tested. Check Console and Frame Debugger for results.");
+            EditorUtility.SetDirty(profile);
+            
+            // Force a repaint to see the change
+            EditorApplication.RepaintHierarchyWindow();
+            EditorApplication.RepaintProjectWindow();
+            
+            Debug.Log("Screen-space probes enabled. Check Console and Frame Debugger for results.");
         }
     }
 }

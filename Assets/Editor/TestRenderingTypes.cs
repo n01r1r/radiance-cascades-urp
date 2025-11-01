@@ -52,27 +52,12 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
             GUILayout.Space(10);
             GUILayout.Label("Quick Test Buttons:", EditorStyles.boldLabel);
 
-            if (GUILayout.Button("Test Simple2D Probes (Value: 2)"))
-            {
-                SetRenderingType(RenderingType.Simple2dProbes);
-            }
-
-            if (GUILayout.Button("Test CubeMap Probes (Value: 3)"))
-            {
-                SetRenderingType(RenderingType.CubeMapProbes);
-            }
-
-            if (GUILayout.Button("Test Direction-First Probes (Value: 1)"))
+            if (GUILayout.Button("Enable Screen-Space Probes (Direction-First)"))
             {
                 SetRenderingType(RenderingType.DirectionFirstProbes);
             }
 
-            if (GUILayout.Button("Test Probes3D (Value: 4)"))
-            {
-                SetRenderingType(RenderingType.Probes3D);
-            }
-
-            if (GUILayout.Button("Disable (Value: 0)"))
+            if (GUILayout.Button("Disable"))
             {
                 SetRenderingType(RenderingType.None);
             }

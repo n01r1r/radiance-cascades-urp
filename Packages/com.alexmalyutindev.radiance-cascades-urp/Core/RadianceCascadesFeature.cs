@@ -60,25 +60,20 @@ namespace AlexMalyutinDev.RadianceCascades
             }
             
             var renderType = volume.RenderingType.value;
-            if (renderType == RenderingType.None)
+            if (renderType == RenderingType.None || renderType != RenderingType.DirectionFirstProbes)
             {
                 return;
             }
             
-            Debug.Log($"RadianceCascades: Enqueuing DirectionFirst Probes passes");
+            Debug.Log("RadianceCascades: Enqueuing Screen-Space Probes (Direction-First) passes");
 
             // TODO: Refactor render target size! Only used in MinMaxDepthPass and BlurredColorBufferPass!
             _radianceCascadesRenderingData.Cascade0Size = new Vector2Int(2048 / 8, 1024 / 8);
 
-            // Only DirectionFirst Probes - perfect for APV comparison
-            if (renderType == RenderingType.DirectionFirstProbes)
-            {
-                Debug.Log("RadianceCascades: Enqueuing Direction-First Probes passes");
-                renderer.EnqueuePass(_minMaxDepthPass);
-                renderer.EnqueuePass(_varianceDepthPass);
-                renderer.EnqueuePass(_blurredColorBufferPass);
-                renderer.EnqueuePass(_directionFirstRcPass);
-            }
+            renderer.EnqueuePass(_minMaxDepthPass);
+            renderer.EnqueuePass(_varianceDepthPass);
+            renderer.EnqueuePass(_blurredColorBufferPass);
+            renderer.EnqueuePass(_directionFirstRcPass);
         }
 
         protected override void Dispose(bool disposing)

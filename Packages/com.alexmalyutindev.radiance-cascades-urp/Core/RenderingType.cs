@@ -4,6 +4,6 @@ namespace AlexMalyutinDev.RadianceCascades
     {
         None = 0,
         DirectionFirstProbes = 1,
-        // Other rendering types removed - keeping only DirectionFirst for APV comparison
+        // Screen-space approach only - all other rendering types removed
     }
 }
