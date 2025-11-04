@@ -1,6 +1,9 @@
 #pragma kernel RenderAndMergeCascade
 #pragma kernel CombineSH
 
+#pragma use_dxc
+#pragma enable_d3d11_debug_symbols
+
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
 #include "Common.hlsl"
@@ -20,6 +23,13 @@ int _EnableAdaptiveRayScale;
 float _CascadeScaleFactor;
 float _VarianceInfluence;
 float _DepthRangeInfluence;
+
+// Anti-leak controls (from volume UI)
+int _EnableAntiLeak;
+float _LeakVisibilityThreshold;
+float _MinVarianceEpsilon;
+float _ThicknessMin;
+float _ThicknessGain;
 
 Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
@@ -91,6 +101,30 @@ inline float3 TransformViewToScreenUV(float3 positionVS)
     positionCS.xyz /= positionCS.w;
     positionCS.xy = mad(positionCS.xy, float2(0.5f, 0.5f), float2(0.5f, 0.5f));
     return positionCS.xyz;
+}
+
+// Fast linear depth reconstruction from variance moments using rsqrt approximation
+inline float ComputeLinearDepthFast(float2 moments)
+{
+    // variance = E[x^2] - (E[x])^2
+    float mean = moments.x;
+    float var = max(0.0f, moments.y - mean * mean);
+    // sqrt(var) ≈ var * rsqrt(var + eps)
+    float stddev = var * rsqrt(var + _MinVarianceEpsilon);
+    return mean + stddev;
+}
+
+// Chebyshev upper bound visibility to reduce leaking through thin geometry
+inline float ChebyshevVisibility(float mean, float var, float t, float minVar)
+{
+    // If receiver is in front of the mean depth, consider fully visible
+    if (t <= mean)
+        return 1.0f;
+
+    float d = t - mean;
+    var = max(var, minVar);
+    float p = var / (var + d * d);
+    return saturate(p);
 }
 
 float GetAdaptiveRayScale(int cascadeLevel, float2 probeUV, float baseRayScale)
@@ -181,6 +215,7 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
     int depthLevel = _CascadeLevel + 3;
     static const int2 neighbours[4] = {int2(0, 0), int2(1, 0), int2(0, 1), int2(1, 1)};
     float2 weightedMinMaxDepth = 0.0f;
+    [unroll]
     for (int i = 0; i < 4; i++)
     {
         float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + neighbours[i], depthLevel);
@@ -191,6 +226,10 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 
     float minProbeWeight = saturate((weightedMinMaxDepth[0] - lowerProbeDepth[0]) / depthThickness);
     float maxProbeWeight = saturate((weightedMinMaxDepth[0] - lowerProbeDepth[1]) / depthThickness);
+    // Depth-thickness gating to reduce leaking on thin geometry
+    float thicknessWeight = _EnableAntiLeak ? saturate((depthThickness - _ThicknessMin) * _ThicknessGain) : 1.0f;
+    minProbeWeight *= thicknessWeight;
+    maxProbeWeight *= thicknessWeight;
 
     float2x4 radiance = 0.0f;
 
@@ -205,6 +244,7 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 
     float4 minProbeRadiance = 0.0f;
     float4 maxProbeRadiance = 0.0f;
+    [unroll]
     for (int rayI = 0; rayI < 4; rayI++)
     {
         int2 off = neighbourRaysOffset[rayI];
@@ -235,7 +275,10 @@ float4 TraceRay(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 range)
         float rayDepth = -rayVS.z;
 
         float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
-        float linearDepth = depthMoments.x + sqrt(max(0.0f, depthMoments.y - depthMoments.x * depthMoments.x));
+        float linearDepth = ComputeLinearDepthFast(depthMoments);
+        float meanDepth = depthMoments.x;
+        float varDepth = max(0.0f, depthMoments.y - meanDepth * meanDepth);
+        float visibility = ChebyshevVisibility(meanDepth, varDepth, rayDepth, 1e-6f);
 
         float4 lighting = SAMPLE_TEXTURE2D_LOD(
             _BlurredColor,
@@ -247,10 +290,11 @@ float4 TraceRay(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 range)
         float depthFade = saturate(1.0f / (1.0f + (linearDepth - rayDepth) * (linearDepth - rayDepth)));
         float distanceFade = 1.0f / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
 
-        bool test = linearDepth < rayDepth && linearDepth + 3.0f > rayDepth;
+        bool test = linearDepth < rayDepth && linearDepth + 3.0f > rayDepth && (!_EnableAntiLeak || visibility > _LeakVisibilityThreshold);
         if (test)
         {
-            radiance.rgb = lighting.rgb * depthFade;
+            float leakVis = _EnableAntiLeak ? visibility : 1.0f;
+            radiance.rgb = lighting.rgb * depthFade * leakVis;
             radiance.a = 0.0f;
             break;
         }
@@ -292,10 +336,12 @@ float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 
     };
 
     float4x4 depthRays = 0.0f;
+    [unroll]
     for (int i = 0; i < 4; i++)
     {
-        float4 dr;
-        for (int j = 0; j < 4; j++) dr[j] = ((i * 4 + j) / 15.0f - 0.5f) * 2.0f;
+        // ((i*4 + j)/15 - 0.5) * 2  =>  ((i*4 + j) * (2/15) - 1)
+        float baseN = (i * 4) * (2.0f / 15.0f) - 1.0f;
+        float4 dr = baseN + float4(0.0f, 2.0f / 15.0f, 4.0f / 15.0f, 6.0f / 15.0f);
         depthRays[i] = dr;
     }
 
@@ -323,17 +369,24 @@ float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 
         float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
 
         float rayDepth = -rayVS.z;
-        float linearDepth = depthMoments.x + sqrt(max(0.0f, depthMoments.y - depthMoments.x * depthMoments.x));
+        float linearDepth = ComputeLinearDepthFast(depthMoments); // optimized from sqrt
+        float meanDepth2 = depthMoments.x;
+        float varDepth2 = max(0.0f, depthMoments.y - meanDepth2 * meanDepth2);
+        float visibility2 = ChebyshevVisibility(meanDepth2, varDepth2, rayDepth, 1e-6f);
         float4x4 transmittance = (rayDepth - linearDepth) + depthRays * i * _RayScale;
 
-        for (int depthRay = 0; depthRay < 16; depthRay++)
-        {
-            float4 r0 = r[depthRay / 4][depthRay % 4];
-            float trans = transmittance[depthRay / 4][depthRay % 4];
-            r0.rgb += lighting.rgb * r0.w * saturate(1.0f - trans) * saturate(trans);
-            r0.w *= saturate(1.0f - trans);
-            r[depthRay / 4][depthRay % 4] = r0;
-        }
+    [unroll]
+    for (int depthRay = 0; depthRay < 16; depthRay++)
+    {
+        int row = depthRay >> 2;   // depthRay / 4
+        int col = depthRay & 3;    // depthRay % 4
+        float4 r0 = r[row][col];
+        float trans = transmittance[row][col]; //bottleneck #1
+        float contrib = saturate(1.0f - trans) * saturate(trans) * visibility2;
+        r0.rgb += lighting.rgb * r0.w * contrib;
+        r0.w *= saturate(1.0f - trans);
+        r[row][col] = r0;
+    }
     }
 
     for (int depthRay = 0; depthRay < 4; depthRay++)
@@ -384,6 +437,7 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
     int2 range = Ranges2[_CascadeLevel];
 
     // TODO: Make two rays simultaneously!
+    [unroll]
     for (int probeDepthId = 0; probeDepthId < 2; probeDepthId++)
     {
         if (probeMinMaxDepthLinear[probeDepthId] > 500.0f) // Probe is too far, skip it.
@@ -457,9 +511,10 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
     );
 
     float2 weightedMinMaxDepth = 0.0f;
+    [unroll]
     for (int i = 0; i < 4; i++)
     {
-        int2 offset = int2(i % 2, i / 2);
+        int2 offset = int2(i & 1, i >> 1);
         float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + offset, 2);
         weightedMinMaxDepth += minMaxDepth * weights[i];
     }
@@ -477,8 +532,10 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
     int2 upperCascadeCoords = upperProbeLocalId;
     upperCascadeCoords.y += upperCascadeSize.y * 7;
     
+    [unroll]
     for (int y = 0; y < 4; y++)
     {
+        [unroll]
         for (int x = 0; x < 4; x++)
         {
             // Sample radiance trilinear (uv, depth). 
