@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 
 namespace AlexMalyutinDev.RadianceCascades
 {
-    // [MODIFIED] Enum for Off-Screen Fallback (Phase 1.3)
+    // Enum for Off-Screen Fallback
     public enum OffScreenFallbackMode
     {
         None,
@@ -36,13 +36,13 @@ namespace AlexMalyutinDev.RadianceCascades
         [Tooltip("Variance influence on ray scale (high variance = shorter rays)")]
         public ClampedFloatParameter VarianceInfluence = new ClampedFloatParameter(0.3f, 0.0f, 1.0f);
 
-        // [MODIFIED] Phase 1.3: Off-Screen Fallback (removed Extended Screen-Space)
+        // Off-Screen Fallback
         [Header("Off-Screen Fallback")]
         [Tooltip("What to use for light rays that travel off-screen. 'None' is fastest (original behavior).")]
         public VolumeParameter<OffScreenFallbackMode> OffScreenFallbackMode = new VolumeParameter<OffScreenFallbackMode>();
         
-        // [NEW] Phase 3.1: Environment CubeMap Settings
-        [Header("Phase 3: Environment CubeMap")]
+        // [NEW] Environment CubeMap Settings
+        [Header("Environment CubeMap")]
         [Tooltip("Optional environment map (Cubemap) to use for off-screen fallback lighting.")]
         public CubemapParameter EnvironmentCubeMap = new CubemapParameter(null);
         [Tooltip("Intensity multiplier for the Environment CubeMap.")]
@@ -50,8 +50,8 @@ namespace AlexMalyutinDev.RadianceCascades
         [Tooltip("How much the environment fallback should blend with the screen-space result (for smooth transitions).")]
         public ClampedFloatParameter EnvironmentFallbackWeight = new ClampedFloatParameter(0.3f, 0.0f, 1.0f);
 
-        // [NEW] Phase 4.1: Adaptive Sampling Density Settings
-        [Header("Phase 4: Adaptive Sampling Density")]
+        // [NEW] Adaptive Sampling Density Settings
+        [Header("Adaptive Sampling Density")]
         [Tooltip("Enables variance-based ray *step count* adjustment (complements Adaptive Ray Scale, which affects ray *length*).")]
         public BoolParameter EnableAdaptiveSamplingDensity = new BoolParameter(false);
         [Tooltip("Minimum number of ray steps to take.")]
