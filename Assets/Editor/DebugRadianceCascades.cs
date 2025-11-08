@@ -59,8 +59,10 @@ namespace AlexMalyutinDev.RadianceCascades.Editor
                     Debug.Log($"  - Active: {volumeComponent.active}");
                     Debug.Log($"  - Rendering Type: {volumeComponent.RenderingType.value}");
                     Debug.Log($"  - Override State: {volumeComponent.RenderingType.overrideState}");
-                    Debug.Log($"  - Volume Resolution: {volumeComponent.VolumeResolution.value}");
-                    Debug.Log($"  - Cascade Count: {volumeComponent.CascadeCount.value}");
+                    Debug.Log($"  - Ray Scale: {volumeComponent.RayScale.value}");
+                    Debug.Log($"  - Enable Adaptive Ray Scale: {volumeComponent.EnableAdaptiveRayScale.value}");
+                    Debug.Log($"  - Cascade Scale Factor: {volumeComponent.CascadeScaleFactor.value}");
+                    Debug.Log($"  - Variance Influence: {volumeComponent.VarianceInfluence.value}");
                 }
                 else
                 {

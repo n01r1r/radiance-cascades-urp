@@ -69,27 +69,54 @@ MonoBehaviour:
   UseSH:
     m_OverrideState: 0
     m_Value: 0
-  VolumeResolution:
-    m_OverrideState: 0
-    m_Value: 64
-  CascadeCount:
-    m_OverrideState: 0
-    m_Value: 3
-  EnableBetaPropagation:
-    m_OverrideState: 0
-    m_Value: 1
-  PropagationRadius:
-    m_OverrideState: 0
-    m_Value: 1
-  EnableFrontToBackMerge:
-    m_OverrideState: 0
-    m_Value: 1
   HighPrecisionRadiance:
     m_OverrideState: 0
     m_Value: 1
   EnableProfiling:
     m_OverrideState: 0
     m_Value: 0
+  EnableAdaptiveRayScale:
+    m_OverrideState: 0
+    m_Value: 1
+  CascadeScaleFactor:
+    m_OverrideState: 0
+    m_Value: 1.5
+  VarianceInfluence:
+    m_OverrideState: 0
+    m_Value: 0.3
+  OffScreenFallbackMode:
+    m_OverrideState: 0
+    m_Value: 0
+  EnableDepthGuidedUpsampling:
+    m_OverrideState: 0
+    m_Value: 0
+  UpsampleTolerance:
+    m_OverrideState: 0
+    m_Value: 0.00001
+  NoiseFilterStrength:
+    m_OverrideState: 0
+    m_Value: 0.9999999
+  EnvironmentCubeMap:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
+  EnvironmentIntensity:
+    m_OverrideState: 0
+    m_Value: 1
+  EnvironmentFallbackWeight:
+    m_OverrideState: 0
+    m_Value: 0.3
+  EnableAdaptiveSamplingDensity:
+    m_OverrideState: 0
+    m_Value: 0
+  MinRaySteps:
+    m_OverrideState: 0
+    m_Value: 4
+  MaxRaySteps:
+    m_OverrideState: 0
+    m_Value: 32
+  VarianceSamplingInfluence:
+    m_OverrideState: 0
+    m_Value: 0.5
   DebugSlice:
     m_OverrideState: 0
     m_Value: 0.5
@@ -164,30 +191,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f785b9c6c3da41ffa4e2a431a68bd759, type: 3}
   m_Name: RadianceCascades
   m_EditorClassIdentifier: 
-  active: 0
+  active: 1
   RenderingType:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 1
   RayScale:
     m_OverrideState: 1
-    m_Value: 0.65
+    m_Value: 0.435
   UseSH:
     m_OverrideState: 1
-    m_Value: 1
-  VolumeResolution:
-    m_OverrideState: 0
-    m_Value: 64
-  CascadeCount:
-    m_OverrideState: 0
-    m_Value: 3
-  EnableBetaPropagation:
-    m_OverrideState: 0
-    m_Value: 1
-  PropagationRadius:
-    m_OverrideState: 0
-    m_Value: 1
-  EnableFrontToBackMerge:
-    m_OverrideState: 0
     m_Value: 1
   HighPrecisionRadiance:
     m_OverrideState: 0
@@ -195,6 +207,48 @@ MonoBehaviour:
   EnableProfiling:
     m_OverrideState: 0
     m_Value: 0
+  EnableAdaptiveRayScale:
+    m_OverrideState: 1
+    m_Value: 1
+  CascadeScaleFactor:
+    m_OverrideState: 1
+    m_Value: 0.5
+  VarianceInfluence:
+    m_OverrideState: 1
+    m_Value: 0.313
+  OffScreenFallbackMode:
+    m_OverrideState: 1
+    m_Value: 2
+  EnableDepthGuidedUpsampling:
+    m_OverrideState: 1
+    m_Value: 1
+  UpsampleTolerance:
+    m_OverrideState: 1
+    m_Value: 0.00001
+  NoiseFilterStrength:
+    m_OverrideState: 1
+    m_Value: 0.9999999
+  EnvironmentCubeMap:
+    m_OverrideState: 1
+    m_Value: {fileID: 8900000, guid: 50d78c91087e548918d803dfadd427f3, type: 3}
+  EnvironmentIntensity:
+    m_OverrideState: 1
+    m_Value: 1
+  EnvironmentFallbackWeight:
+    m_OverrideState: 1
+    m_Value: 0.3
+  EnableAdaptiveSamplingDensity:
+    m_OverrideState: 1
+    m_Value: 1
+  MinRaySteps:
+    m_OverrideState: 1
+    m_Value: 2
+  MaxRaySteps:
+    m_OverrideState: 1
+    m_Value: 64
+  VarianceSamplingInfluence:
+    m_OverrideState: 1
+    m_Value: 0.269
   DebugSlice:
     m_OverrideState: 0
     m_Value: 0.5

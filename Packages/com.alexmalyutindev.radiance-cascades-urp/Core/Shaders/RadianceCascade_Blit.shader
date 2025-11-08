@@ -457,6 +457,9 @@ Shader "Hidden/RadianceCascade/Blit"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
+            // [MODIFIED] Phase 2.1: Add shader keywords (removed _EXTENDED_SCREEN_SPACE)
+            #pragma multi_compile _ _DEPTH_GUIDED_UPSAMPLING
+
             #pragma target 2.0
             #pragma editor_sync_compilation
 
@@ -471,6 +474,10 @@ Shader "Hidden/RadianceCascade/Blit"
 
             TEXTURE2D(_GBuffer0); // Color
             TEXTURE2D(_GBuffer2); // Normals
+            
+            // [MODIFIED] Phase 2.2: Upsampling parameters (removed _ViewportCropScaleOffset)
+            float _UpsampleTolerance;
+            float _NoiseFilterStrength;
 
             struct Attributes
             {
@@ -509,8 +516,9 @@ Shader "Hidden/RadianceCascade/Blit"
                 float4 intialWeights
             )
             {
-                float _UpsampleTolerance = 1e-5f;
-                float _NoiseFilterStrength = 0.9999999f;
+                // [MODIFIED] Phase 2.2: Use uniforms instead of hardcoded values
+                // float _UpsampleTolerance = 1e-5f;
+                // float _NoiseFilterStrength = 0.9999999f;
 
                 float4 weights = intialWeights / (abs(HiDepth - LowDepths) + _UpsampleTolerance);
                 float TotalWeight = dot(weights, 1) + _NoiseFilterStrength;
@@ -525,7 +533,8 @@ Shader "Hidden/RadianceCascade/Blit"
 
             float4 SampleSHBuffer(float2 uv)
             {
-                // TODO: Depth-guided sampling
+                // [MODIFIED] Removed viewport crop logic
+                // TODO: Depth-guided sampling (This function is for the *simple* path)
                 return SAMPLE_TEXTURE2D_LOD(_BlitTexture, sampler_LinearClamp, uv, 0);
             }
 
@@ -541,12 +550,13 @@ Shader "Hidden/RadianceCascade/Blit"
                     float4(shX.r, shY.r, shZ.r, sh0.r),
                     float4(shX.g, shY.g, shZ.g, sh0.g),
                     float4(shX.b, shY.b, shZ.b, sh0.b)
-                );
+                 );
                 return float4(max(half3(0.0h, 0.0h, 0.0h), L0L1), 1.0f);
             }
 
             float4 SampleSH2(float2 uv, float3 normalWS)
             {
+                // [MODIFIED] Removed viewport crop logic
                 float depth = Linear01Depth(SampleSceneDepth(uv), _ZBufferParams);
 
                 int2 shSize = _BlitTexture_TexelSize.zw * 0.5f;
@@ -629,7 +639,15 @@ Shader "Hidden/RadianceCascade/Blit"
             {
                 half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_LinearClamp, input.texcoord, 0);
                 float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
-                float4 radiance = SampleSH2(input.texcoord, normalize(normalWS));
+                
+                // [MODIFIED] Phase 2.1: Use keyword to select simple or upsampled path
+                float4 radiance;
+                #if defined(_DEPTH_GUIDED_UPSAMPLING)
+                    radiance = SampleSH2(input.texcoord, normalize(normalWS));
+                #else
+                    radiance = SampleSH(input.texcoord, normalize(normalWS));
+                #endif
+
                 return radiance * gbuffer0;
             }
             ENDHLSL

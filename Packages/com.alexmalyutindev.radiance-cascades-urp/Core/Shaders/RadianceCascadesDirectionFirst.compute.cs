@@ -20,6 +20,8 @@ namespace AlexMalyutinDev.RadianceCascades
             _combineSHKernel = _compute.FindKernel("CombineSH");
         }
 
+        public ComputeShader GetComputeShader() => _compute;
+
         public void RenderMerge(
             ComputeCommandBuffer cmd,
             ref UniversalCameraData cameraData,
@@ -65,7 +67,6 @@ namespace AlexMalyutinDev.RadianceCascades
                 cmd.SetComputeIntParam(_compute, "_EnableAdaptiveRayScale", rcSettings.EnableAdaptiveRayScale.value ? 1 : 0);
                 cmd.SetComputeFloatParam(_compute, "_CascadeScaleFactor", rcSettings.CascadeScaleFactor.value);
                 cmd.SetComputeFloatParam(_compute, "_VarianceInfluence", rcSettings.VarianceInfluence.value);
-                cmd.SetComputeFloatParam(_compute, "_DepthRangeInfluence", rcSettings.DepthRangeInfluence.value);
             }
 
             for (int cascadeLevel = 5; cascadeLevel >= 0; cascadeLevel--)

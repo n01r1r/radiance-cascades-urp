@@ -4,8 +4,13 @@
 #pragma use_dxc
 #pragma enable_d3d11_debug_symbols
 
+// [NEW] Phase 1.3 & 3: Add shader keywords for fallback modes
+#pragma multi_compile _ OFFSCREEN_FALLBACK_ENV
+#pragma multi_compile _ OFFSCREEN_FALLBACK_AMBIENT
+
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SphericalHarmonics.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
 #include "Common.hlsl"
 
 // #define SIMPLE_RAYCASTING
@@ -22,7 +27,6 @@ int _OptimizedDepthSampling;
 int _EnableAdaptiveRayScale;
 float _CascadeScaleFactor;
 float _VarianceInfluence;
-float _DepthRangeInfluence;
 
 // Anti-leak controls (from volume UI)
 int _EnableAntiLeak;
@@ -30,6 +34,22 @@ float _LeakVisibilityThreshold;
 float _MinVarianceEpsilon;
 float _ThicknessMin;
 float _ThicknessGain;
+
+// [NEW] Phase 3.2: Environment CubeMap Integration
+TextureCube _EnvironmentCubeMap;
+SamplerState sampler_EnvironmentCubeMap; // Unity should auto-provide this
+// [MODIFIED] _EnvironmentCubeMap_HDR removed - using _EnvironmentIntensity directly instead
+float _EnvironmentIntensity;
+float _EnvironmentFallbackWeight; // Not used in compute, but good to have
+
+// [NEW] Fallback ambient light color (passed from C#)
+float4 _AmbientSkyColor;
+
+// [NEW] Phase 4.1: Adaptive Sampling Density
+int _EnableAdaptiveSamplingDensity;
+int _MinRaySteps;
+int _MaxRaySteps;
+float _VarianceSamplingInfluence; // Note: This is a *different* influence from the one for Ray Scale
 
 Texture2D<float2> _MinMaxDepth;
 Texture2D<float> _SmoothedDepth;
@@ -139,13 +159,26 @@ float GetAdaptiveRayScale(int cascadeLevel, float2 probeUV, float baseRayScale)
     float variance = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, probeUV, cascadeLevel + 2).x;
     float varianceScale = lerp(1.0f + _VarianceInfluence, 1.0f - _VarianceInfluence, saturate(variance * 2.0f));
     
-    // Depth range adjustment (NEW)
-    float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, probeUV * _ProbesCount, cascadeLevel + 2).xy;
-    float2 minMaxLinear = LinearEyeDepth(minMaxDepth, _ZBufferParams);
-    float depthRange = minMaxLinear.y - minMaxLinear.x;
-    float depthScale = lerp(1.0f, 1.5f, saturate(depthRange / 50.0f) * _DepthRangeInfluence);
-    
-    return baseRayScale * cascadeScale * varianceScale * depthScale * _CascadeScaleFactor;
+    return baseRayScale * cascadeScale * varianceScale * _CascadeScaleFactor;
+}
+
+// [NEW] Phase 3.2: Helper function to sample environment map
+float4 GetAmbientLight()
+{
+    // [FIXED] Use uniform passed from C# instead of unity_AmbientSky (not available in compute shaders)
+    return float4(_AmbientSkyColor.rgb, 1.0f);
+}
+
+float4 SampleEnvironmentCube(float3 directionWS)
+{
+    // [FIXED] Use _EnvironmentIntensity directly instead of DecodeHDREnvironment with _EnvironmentCubeMap_HDR
+    #if defined(OFFSCREEN_FALLBACK_ENV)
+        float4 envColor = SAMPLE_TEXTURECUBE_LOD(_EnvironmentCubeMap, sampler_LinearClamp, directionWS, 0);
+        // [MODIFIED] Direct intensity multiplication instead of HDR decoding
+        return float4(envColor.rgb * _EnvironmentIntensity, envColor.a);
+    #else
+        return float4(0.0, 0.0, 0.0, 1.0);
+    #endif
 }
 
 float4 GetRadianceWeighted(int2 coords, float4 weights)
@@ -259,6 +292,10 @@ float2x4 LoadUpperRadianceBilateral(int2 coords, float2 lowerProbeDepth)
 
 float4 TraceRay(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 range)
 {
+    // [MODIFIED] Phase 1.3: Need ray direction in WS for env map
+    float3 rayDirectionVS = normalize(rayEndVS - rayOriginVS);
+    float3 rayDirectionWS = mul((float3x3)_ViewToWorld, rayDirectionVS);
+    
     float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
     UNITY_LOOP
     for (int i = 0; i < stepsCount; i++)
@@ -267,30 +304,49 @@ float4 TraceRay(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 range)
         // TODO: Use DDA for ray marching.
         float3 rayVS = lerp(rayOriginVS, rayEndVS, traveledDistance);
         float3 ray = TransformViewToScreenUV(rayVS);
+        
+        // [MODIFIED] Phase 1.3: Off-Screen Ray Handling
+        float4 lighting;
+        float linearDepth;
+        float visibility;
+        
         if (any(ray.xy < 0 || 1 < ray.xy))
         {
-            break;
+            #if defined(OFFSCREEN_FALLBACK_ENV)
+                lighting = SampleEnvironmentCube(rayDirectionWS);
+                visibility = 1.0;
+                linearDepth = 10000.0; // Treat as sky
+            #elif defined(OFFSCREEN_FALLBACK_AMBIENT)
+                lighting = GetAmbientLight();
+                visibility = 1.0;
+                linearDepth = 10000.0; // Treat as sky
+            #else
+                break; // Original behavior
+            #endif
         }
+        else
+        {
+            float rayDepth = -rayVS.z;
 
+            float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
+            linearDepth = ComputeLinearDepthFast(depthMoments);
+            float meanDepth = depthMoments.x;
+            float varDepth = max(0.0f, depthMoments.y - meanDepth * meanDepth);
+            visibility = ChebyshevVisibility(meanDepth, varDepth, rayDepth, 1e-6f);
+
+            lighting = SAMPLE_TEXTURE2D_LOD(
+                _BlurredColor,
+                sampler_LinearClamp,
+                ray.xy,
+                _CascadeLevel
+            );
+        }
+        
         float rayDepth = -rayVS.z;
-
-        float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
-        float linearDepth = ComputeLinearDepthFast(depthMoments);
-        float meanDepth = depthMoments.x;
-        float varDepth = max(0.0f, depthMoments.y - meanDepth * meanDepth);
-        float visibility = ChebyshevVisibility(meanDepth, varDepth, rayDepth, 1e-6f);
-
-        float4 lighting = SAMPLE_TEXTURE2D_LOD(
-            _BlurredColor,
-            sampler_LinearClamp,
-            ray.xy,
-            _CascadeLevel
-        );
-
         float depthFade = saturate(1.0f / (1.0f + (linearDepth - rayDepth) * (linearDepth - rayDepth)));
         float distanceFade = 1.0f / (1.0f + (range.x + (range.y - range.x) * traveledDistance) * _RayScale);
-
         bool test = linearDepth < rayDepth && linearDepth + 3.0f > rayDepth && (!_EnableAntiLeak || visibility > _LeakVisibilityThreshold);
+        
         if (test)
         {
             float leakVis = _EnableAntiLeak ? visibility : 1.0f;
@@ -305,6 +361,10 @@ float4 TraceRay(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 range)
 
 float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 range)
 {
+    // [NEW] Phase 1.3: Need ray direction in WS for env map
+    float3 rayDirectionVS = normalize(rayEndVS - rayOriginVS);
+    float3 rayDirectionWS = mul((float3x3)_ViewToWorld, rayDirectionVS);
+
     float4 radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
     
     float4x4 r[4] =
@@ -352,27 +412,41 @@ float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 
         // TODO: Use DDA for ray marching.
         float3 rayVS = lerp(rayOriginVS, rayEndVS, traveledDistance);
         float3 ray = TransformViewToScreenUV(rayVS);
-        
         bool isOffScreen = any(ray.xy < 0 || 1 < ray.xy);
+        
         float4 lighting;
+        float linearDepth;
+        float visibility2;
+        float rayDepth = -rayVS.z;
 
+
+
+        // [MODIFIED] Phase 1.3: Off-Screen Ray Handling
         if (isOffScreen)
         {
-            break;  // Simple off-screen handling
+            #if defined(OFFSCREEN_FALLBACK_ENV)
+                lighting = SampleEnvironmentCube(rayDirectionWS);
+                visibility2 = 1.0;
+                linearDepth = 10000.0; // Treat as sky
+            #elif defined(OFFSCREEN_FALLBACK_AMBIENT)
+                lighting = GetAmbientLight();
+                visibility2 = 1.0;
+                linearDepth = 10000.0; // Treat as sky
+            #else
+                break; // Original behavior
+            #endif
         }
         else
         {
             // Normal on-screen sampling
             lighting = SAMPLE_TEXTURE2D_LOD(_BlurredColor, sampler_LinearClamp, ray.xy, _CascadeLevel + 1);
+            
+            float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
+            linearDepth = ComputeLinearDepthFast(depthMoments); // optimized from sqrt
+            float meanDepth2 = depthMoments.x;
+            float varDepth2 = max(0.0f, depthMoments.y - meanDepth2 * meanDepth2);
+            visibility2 = ChebyshevVisibility(meanDepth2, varDepth2, rayDepth, 1e-6f);
         }
-
-        float2 depthMoments = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, sampler_LinearClamp, ray.xy, 0);
-
-        float rayDepth = -rayVS.z;
-        float linearDepth = ComputeLinearDepthFast(depthMoments); // optimized from sqrt
-        float meanDepth2 = depthMoments.x;
-        float varDepth2 = max(0.0f, depthMoments.y - meanDepth2 * meanDepth2);
-        float visibility2 = ChebyshevVisibility(meanDepth2, varDepth2, rayDepth, 1e-6f);
         float4x4 transmittance = (rayDepth - linearDepth) + depthRays * i * _RayScale;
 
     [unroll]
@@ -395,6 +469,32 @@ float4 TraceDepthRays(float3 rayOriginVS, float3 rayEndVS, int stepsCount, int2 
     }
     
     return radiance;
+}
+
+// [NEW] Phase 4.2: Adaptive Sampling Density function
+int GetAdaptiveStepCount(int cascadeLevel, float2 probeUV, int baseSteps)
+{
+    if (!_EnableAdaptiveSamplingDensity)
+        return baseSteps;
+    
+    // Sample variance at the probe's location
+    float variance = SAMPLE_TEXTURE2D_LOD(_VarianceDepth, 
+        sampler_LinearClamp, probeUV, cascadeLevel + 2).x;
+    
+    // Use the *new* influence parameter to scale step count
+    // [FIXED] Cast int to float for lerp function
+    float varianceScale = lerp((float)_MinRaySteps, (float)_MaxRaySteps, 
+        saturate(variance * _VarianceSamplingInfluence));
+    
+    // Apply scale to base steps
+    // NOTE: Plan multiplies, but min/max logic seems to *replace* base steps.
+    // Following plan's function logic (lerp between min/max):
+    return (int)varianceScale;
+    
+    // [Alternative implementation, closer to plan's text "adjust step count"]
+    // float varianceScale = lerp(1.0f, _MaxRaySteps / (float)baseSteps, 
+    //     saturate(variance * _VarianceSamplingInfluence));
+    // return clamp((int)(baseSteps * varianceScale), _MinRaySteps, _MaxRaySteps);
 }
 
 [numthreads(8, 4, 1)]
@@ -457,10 +557,10 @@ void RenderAndMergeCascade(uint3 id : SV_DispatchThreadID)
         
         float3 rayOriginVS = probeCenterVS + range.x * adaptiveRayScale * directionVS;
         float3 rayEndVS = probeCenterVS + range.y * adaptiveRayScale * directionVS;
-
-        // TODO: Calculate proper ray steps count.
-        // float stepsCount = clamp(length(rayOriginCS.xy - rayEndCS.xy), 1, 200);
-        int stepsCount = 4 * (range.y - range.x);
+        
+        // [MODIFIED] Phase 4.2: Use adaptive step count
+        int baseSteps = 4 * (range.y - range.x);
+        int stepsCount = GetAdaptiveStepCount(_CascadeLevel, probeCenterUV, baseSteps);
 
         #if defined(SIMPLE_RAYCASTING)
         minMaxRadiance[probeDepthId] = TraceRay(rayOriginVS, rayEndVS, stepsCount, range);
