@@ -41,15 +41,6 @@ namespace AlexMalyutinDev.RadianceCascades
         [Tooltip("What to use for light rays that travel off-screen. 'None' is fastest (original behavior).")]
         public VolumeParameter<OffScreenFallbackMode> OffScreenFallbackMode = new VolumeParameter<OffScreenFallbackMode>();
         
-        // [NEW] Phase 2.2: Depth-Guided Upsampling Settings
-        [Header("Phase 2: Depth-Guided Upsampling")]
-        [Tooltip("Enables depth-guided bilateral upsampling in the combine pass to improve quality and reduce edge artifacts.")]
-        public BoolParameter EnableDepthGuidedUpsampling = new BoolParameter(false);
-        [Tooltip("Depth difference tolerance for the bilateral filter. Smaller values are more sensitive to depth changes.")]
-        public ClampedFloatParameter UpsampleTolerance = new ClampedFloatParameter(1e-5f, 1e-6f, 1e-3f);
-        [Tooltip("Base weight for the bilateral filter to reduce noise. Should be very close to 1.")]
-        public ClampedFloatParameter NoiseFilterStrength = new ClampedFloatParameter(0.9999999f, 0.9f, 1.0f);
-
         // [NEW] Phase 3.1: Environment CubeMap Settings
         [Header("Phase 3: Environment CubeMap")]
         [Tooltip("Optional environment map (Cubemap) to use for off-screen fallback lighting.")]

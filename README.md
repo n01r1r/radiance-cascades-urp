@@ -7,7 +7,6 @@ Unity URP implementation of Radiance Cascades with performance optimizations.
 - **Direction-First Probes**: Screen-space global illumination with cascaded ray marching
 - **Adaptive Ray Scale**: Dynamic ray length based on cascade level and scene variance
 - **Off-Screen Fallback**: Environment CubeMap or Ambient light for off-screen rays
-- **Depth-Guided Upsampling**: Bilateral filtering to reduce edge artifacts
 - **Adaptive Sampling Density**: Variance-based ray step count adjustment
 - **Unity 6 URP Compatible**: Full Render Graph integration
 

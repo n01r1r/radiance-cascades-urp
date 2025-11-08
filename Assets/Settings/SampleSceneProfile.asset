@@ -224,7 +224,7 @@ MonoBehaviour:
     m_Value: 1
   UpsampleTolerance:
     m_OverrideState: 1
-    m_Value: 0.00001
+    m_Value: 0.000207
   NoiseFilterStrength:
     m_OverrideState: 1
     m_Value: 0.9999999

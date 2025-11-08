@@ -13,8 +13,6 @@ namespace AlexMalyutinDev.RadianceCascades
         private readonly Material _blitMaterial;
         
         // [MODIFIED] Shader keywords (removed _ViewportCropScaleOffset and k_ExtendedScreenSpace)
-        private static readonly int _UpsampleTolerance = Shader.PropertyToID("_UpsampleTolerance");
-        private static readonly int _NoiseFilterStrength = Shader.PropertyToID("_NoiseFilterStrength");
         private static readonly int _EnvironmentCubeMap = Shader.PropertyToID("_EnvironmentCubeMap");
         private static readonly int _EnvironmentIntensity = Shader.PropertyToID("_EnvironmentIntensity");
         private static readonly int _EnvironmentFallbackWeight = Shader.PropertyToID("_EnvironmentFallbackWeight");
@@ -25,7 +23,9 @@ namespace AlexMalyutinDev.RadianceCascades
         // [NEW] Fallback ambient light color property ID
         private static readonly int _AmbientSkyColor = Shader.PropertyToID("_AmbientSkyColor");
         
-        private const string k_DepthGuidedUpsampling = "_DEPTH_GUIDED_UPSAMPLING";
+        // [NEW] BlitSH pass texel size property ID
+        private static readonly int _BlitTexture_TexelSize = Shader.PropertyToID("_BlitTexture_TexelSize");
+        
         private const string k_OffscreenFallbackEnv = "OFFSCREEN_FALLBACK_ENV";
         private const string k_OffscreenFallbackAmbient = "OFFSCREEN_FALLBACK_AMBIENT";
 
@@ -210,6 +210,9 @@ namespace AlexMalyutinDev.RadianceCascades
             
             // [MODIFIED] Pass settings from Volume (removed RadianceSHSizeTexel, BaseWidth, BaseHeight)
             public RadianceCascades Settings;
+            
+            // [NEW] Texel size for _BlitTexture_TexelSize uniform
+            public Vector4 RadianceSHTexelSize;
         }
 
         private void CombineCascades(UnityEngine.Rendering.RenderGraphModule.RenderGraph renderGraph, ContextContainer frameData, UnityEngine.Rendering.RenderGraphModule.TextureHandle radianceSH)
@@ -238,32 +241,29 @@ namespace AlexMalyutinDev.RadianceCascades
             passData.RadianceSH = radianceSH;
             builder.UseTexture(passData.RadianceSH);
 
+            // [NEW FIX] Calculate texel size for _BlitTexture_TexelSize uniform
+            // Unity _TexelSize structure: .xy = (1/width, 1/height), .zw = (width, height)
+            var shDesc = radianceSH.GetDescriptor(renderGraph);
+            passData.RadianceSHTexelSize = new Vector4(
+                1.0f / shDesc.width, 1.0f / shDesc.height, // .xy = (1/width, 1/height)
+                shDesc.width, shDesc.height                 // .zw = (width, height)
+            );
+
             passData.MinMaxDepth = minMaxDepthData.MinMaxDepth;
             builder.UseTexture(passData.MinMaxDepth);
 
             builder.SetRenderAttachment(resourceData.activeColorTexture, 0);
             builder.SetRenderFunc<CombinePassData>(static (data, context) =>
             {
-                var settings = data.Settings;
-                
-                // [NEW] Phase 2.2: Set Depth-Guided Upsampling uniforms and keyword
-                if (data.Material != null && data.Material.shader != null)
-                {
-                    var kwDepthGuided = new LocalKeyword(data.Material.shader, k_DepthGuidedUpsampling);
-                    if (settings.EnableDepthGuidedUpsampling.value)
-                        context.cmd.EnableKeyword(data.Material, kwDepthGuided);
-                    else
-                        context.cmd.DisableKeyword(data.Material, kwDepthGuided);
-                    context.cmd.SetGlobalFloat(_UpsampleTolerance, settings.UpsampleTolerance.value);
-                    context.cmd.SetGlobalFloat(_NoiseFilterStrength, settings.NoiseFilterStrength.value);
-                }
-
                 context.cmd.SetGlobalMatrix("_ViewToWorld", data.CameraData.GetViewMatrix().inverse);
-                context.cmd.SetGlobalTexture("_MinMaxDepth", data.MinMaxDepth);
 
                 context.cmd.SetGlobalTexture("_GBuffer0", data.FrameColor);
                 context.cmd.SetGlobalTexture("_GBuffer2", data.FrameNormals);
                 context.cmd.SetGlobalTexture("_CameraDepthTexture", data.FrameDepth);
+                
+                // [NEW FIX] Explicitly set _BlitTexture_TexelSize uniform
+                // BlitUtils may not set this correctly, so we set it explicitly
+                context.cmd.SetGlobalVector(_BlitTexture_TexelSize, data.RadianceSHTexelSize);
                 
                 if (data.Material != null)
                 {
