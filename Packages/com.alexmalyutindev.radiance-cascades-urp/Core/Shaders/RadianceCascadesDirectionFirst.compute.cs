@@ -10,6 +10,7 @@ namespace AlexMalyutinDev.RadianceCascades
         private readonly ComputeShader _compute;
         private readonly int _renderAndMergeKernel;
         private readonly int _combineSHKernel;
+        private readonly int _combineAverageKernel;
         private readonly LocalKeyword _bilinearKw;
         private readonly LocalKeyword _bilateralKw;
 
@@ -18,6 +19,7 @@ namespace AlexMalyutinDev.RadianceCascades
             _compute = compute;
             _renderAndMergeKernel = _compute.FindKernel("RenderAndMergeCascade");
             _combineSHKernel = _compute.FindKernel("CombineSH");
+            _combineAverageKernel = _compute.FindKernel("CombineAverage");
         }
 
         public ComputeShader GetComputeShader() => _compute;
@@ -133,6 +135,45 @@ namespace AlexMalyutinDev.RadianceCascades
             int height = Mathf.FloorToInt(radianceSHSizeTexel.y) / 2;
             cmd.DispatchCompute(_compute, kernel, width / 8, height / 4, 1);
             cmd.EndSample("RadianceCascade.CombineSH");
+        }
+
+        // [NEW] CombineAverage: Simple average of all ray directions (flat GI, no directionality)
+        public void CombineAverage(
+            ComputeCommandBuffer cmd,
+            ref UniversalCameraData cameraData,
+            TextureHandle cascades,
+            Vector4 cascadesSizeTexel,
+            TextureHandle minMaxDepth,
+            TextureHandle varianceDepth,
+            ref TextureHandle radianceSH,
+            Vector4 radianceSHSizeTexel
+        )
+        {
+            var kernel = _combineAverageKernel;
+            if (kernel < 0) return;
+
+            cmd.BeginSample("RadianceCascade.CombineAverage");
+
+            Vector4 probesCount = new Vector4(
+                Mathf.FloorToInt(cascadesSizeTexel.x / 4),
+                Mathf.FloorToInt(cascadesSizeTexel.y / 4)
+            );
+            cmd.SetComputeVectorParam(_compute, "_ProbesCount", probesCount);
+            cmd.SetComputeMatrixParam(_compute, "_ViewToWorld", cameraData.GetViewMatrix().inverse);
+
+            cmd.SetComputeTextureParam(_compute, kernel, "_RadianceCascades", cascades);
+            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.MinMaxDepth, minMaxDepth);
+            cmd.SetComputeTextureParam(_compute, kernel, ShaderIds.VarianceDepth, varianceDepth);
+            cmd.SetComputeTextureParam(_compute, kernel, "_RadianceSH", radianceSH);
+
+            // Quality settings (same as CombineSH)
+            cmd.SetComputeIntParam(_compute, "_ImprovedCascadeBlending", 1);
+            cmd.SetComputeIntParam(_compute, "_OptimizedDepthSampling", 1);
+
+            int width = Mathf.FloorToInt(radianceSHSizeTexel.x) / 2;
+            int height = Mathf.FloorToInt(radianceSHSizeTexel.y) / 2;
+            cmd.DispatchCompute(_compute, kernel, width / 8, height / 4, 1);
+            cmd.EndSample("RadianceCascade.CombineAverage");
         }
     }
 }

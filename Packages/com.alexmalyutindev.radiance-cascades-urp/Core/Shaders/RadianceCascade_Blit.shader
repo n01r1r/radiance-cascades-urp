@@ -522,12 +522,35 @@ Shader "Hidden/RadianceCascade/Blit"
                 return float4(max(half3(0.0h, 0.0h, 0.0h), L0L1), 1.0f);
             }
 
+            // [NEW] SampleAverage: Simple flat GI (no directionality) - just reads sh0
+            float4 SampleAverage(float2 uv)
+            {
+                float2 shUV = uv * 0.5f;
+                // When Use SH = OFF, CombineAverage stores the average in sh0 position only
+                float4 sh0 = SampleSHBuffer(shUV + float2(0.0f, 0.5f));
+                // Return flat radiance (no normal-based directionality)
+                return float4(max(half3(0.0h, 0.0h, 0.0h), sh0.rgb), 1.0f);
+            }
+
             half4 Fragment(Varyings input) : SV_TARGET
             {
                 half4 gbuffer0 = SAMPLE_TEXTURE2D_LOD(_GBuffer0, sampler_LinearClamp, input.texcoord, 0);
                 float3 normalWS = SAMPLE_TEXTURE2D_LOD(_GBuffer2, sampler_LinearClamp, input.texcoord, 0);
                 
-                float4 radiance = SampleSH(input.texcoord, normalize(normalWS));
+                // [MODIFIED] Check if sh1, sh2, sh3 are zero (Use SH = OFF)
+                // If they are zero, use simple average; otherwise use SH decoding
+                float2 shUV = input.texcoord * 0.5f;
+                float4 shX = SampleSHBuffer(shUV + float2(0.5f, 0.5f));
+                float4 shY = SampleSHBuffer(shUV);
+                float4 shZ = SampleSHBuffer(shUV + float2(0.5f, 0.0f));
+                
+                // If all SH1 coefficients are zero, use flat average
+                bool useFlatGI = (dot(shX.rgb, shX.rgb) + dot(shY.rgb, shY.rgb) + dot(shZ.rgb, shZ.rgb)) < 0.0001f;
+                
+                float4 radiance = useFlatGI 
+                    ? SampleAverage(input.texcoord)
+                    : SampleSH(input.texcoord, normalize(normalWS));
+                
                 return radiance * gbuffer0;
             }
             ENDHLSL

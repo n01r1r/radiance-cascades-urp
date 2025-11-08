@@ -183,16 +183,33 @@ namespace AlexMalyutinDev.RadianceCascades
                     data.CascadesSizeTexel
                 );
 
-                data.Compute.CombineSH(
-                    context.cmd,
-                    ref data.CameraData,
-                    data.Cascades,
-                    data.CascadesSizeTexel,
-                    data.MinMaxDepth,
-                    data.VarianceDepth,
-                    ref data.RadianceSH,
-                    data.RadianceSHSizeTexel
-                );
+                // [NEW] Use SH toggle: Choose between directional (SH) or flat (Average) GI
+                if (settings.UseSH.value)
+                {
+                    data.Compute.CombineSH(
+                        context.cmd,
+                        ref data.CameraData,
+                        data.Cascades,
+                        data.CascadesSizeTexel,
+                        data.MinMaxDepth,
+                        data.VarianceDepth,
+                        ref data.RadianceSH,
+                        data.RadianceSHSizeTexel
+                    );
+                }
+                else
+                {
+                    data.Compute.CombineAverage(
+                        context.cmd,
+                        ref data.CameraData,
+                        data.Cascades,
+                        data.CascadesSizeTexel,
+                        data.MinMaxDepth,
+                        data.VarianceDepth,
+                        ref data.RadianceSH,
+                        data.RadianceSHSizeTexel
+                    );
+                }
             });
         }
 

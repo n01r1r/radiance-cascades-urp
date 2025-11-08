@@ -1,5 +1,6 @@
 #pragma kernel RenderAndMergeCascade
 #pragma kernel CombineSH
+#pragma kernel CombineAverage
 
 #pragma use_dxc
 #pragma enable_d3d11_debug_symbols
@@ -668,4 +669,81 @@ void CombineSH(uint3 id : SV_DispatchThreadID)
     _RadianceSH[coords + int2(1, 1) * _ProbesCount] = sh1;
     _RadianceSH[coords + int2(0, 0) * _ProbesCount] = sh2;
     _RadianceSH[coords + int2(1, 0) * _ProbesCount] = sh3;
+}
+
+// [NEW] CombineAverage: Simple average of all 16 ray directions (no directionality)
+[numthreads(8, 4, 1)]
+void CombineAverage(uint3 id : SV_DispatchThreadID)
+{
+    int2 coords = id.xy;
+
+    int2 upperCascadeSize = _ProbesCount * 0.5f;
+    int2 lowerProbeId = coords % _ProbesCount;
+    int2 upperProbeLocalId = clamp(floor((lowerProbeId - 1) * 0.5f), 0, upperCascadeSize - 2);
+
+    float2 bilinearWeights = saturate(fmod((lowerProbeId - 1) * 0.5f, 1.0f) + 0.25f);
+    float4 weights = float4(bilinearWeights, 1.0f - bilinearWeights);
+    weights = float4(
+        weights.z * weights.w,
+        weights.x * weights.w,
+        weights.z * weights.y,
+        weights.x * weights.y
+    );
+
+    float2 weightedMinMaxDepth = 0.0f;
+    [unroll]
+    for (int i = 0; i < 4; i++)
+    {
+        int2 offset = int2(i & 1, i >> 1);
+        float2 minMaxDepth = LOAD_TEXTURE2D_LOD(_MinMaxDepth, upperProbeLocalId + offset, 2);
+        weightedMinMaxDepth += minMaxDepth * weights[i];
+    }
+    weightedMinMaxDepth = LinearEyeDepth(weightedMinMaxDepth, _ZBufferParams);
+
+    float2 minMaxDepth = LinearEyeDepth(LOAD_TEXTURE2D_LOD(_MinMaxDepth, coords, 1).xy, _ZBufferParams);
+    float depthThickness = max(weightedMinMaxDepth.x - weightedMinMaxDepth.y, 0.001f);
+    float depthOffset = saturate((weightedMinMaxDepth.x - minMaxDepth.x) / depthThickness);
+
+    // Simple average of all 16 ray directions (no SH encoding)
+    float4 averageRadiance = 0.0f;
+
+    int2 upperCascadeCoords = upperProbeLocalId;
+    upperCascadeCoords.y += upperCascadeSize.y * 7;
+    
+    [unroll]
+    for (int y = 0; y < 4; y++)
+    {
+        [unroll]
+        for (int x = 0; x < 4; x++)
+        {
+            // Sample radiance trilinear (uv, depth). 
+            int2 upperCoords = upperCascadeCoords + int2(x, -y) * upperCascadeSize;
+            float4 radianceMin = 0.0f;
+            radianceMin += _RadianceCascades[upperCoords] * weights.x;
+            radianceMin += _RadianceCascades[upperCoords + int2(1, 0)] * weights.y;
+            radianceMin += _RadianceCascades[upperCoords + int2(0, 1)] * weights.z;
+            radianceMin += _RadianceCascades[upperCoords + int2(1, 1)] * weights.w;
+
+            upperCoords.x += 4 * upperCascadeSize.x;
+            float4 radianceMax = 0.0f;
+            radianceMax += _RadianceCascades[upperCoords] * weights.x;
+            radianceMax += _RadianceCascades[upperCoords + int2(1, 0)] * weights.y;
+            radianceMax += _RadianceCascades[upperCoords + int2(0, 1)] * weights.z;
+            radianceMax += _RadianceCascades[upperCoords + int2(1, 1)] * weights.w;
+
+            float4 radiance = lerp(radianceMin, radianceMax, depthOffset);
+            
+            // Simply accumulate (will divide by 16 later)
+            averageRadiance += radiance;
+        }
+    }
+
+    // Average over 16 directions
+    averageRadiance /= 16.0f;
+
+    // Store in sh0 position only, set others to zero (flat GI, no directionality)
+    _RadianceSH[coords + int2(0, 1) * _ProbesCount] = averageRadiance; // sh0
+    _RadianceSH[coords + int2(1, 1) * _ProbesCount] = float4(0.0f, 0.0f, 0.0f, 0.0f); // sh1x = 0
+    _RadianceSH[coords + int2(0, 0) * _ProbesCount] = float4(0.0f, 0.0f, 0.0f, 0.0f); // sh1y = 0
+    _RadianceSH[coords + int2(1, 0) * _ProbesCount] = float4(0.0f, 0.0f, 0.0f, 0.0f); // sh1z = 0
 }
