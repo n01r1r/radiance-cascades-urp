@@ -30,6 +30,7 @@ namespace StarterAssets
 
         private void Start()
         {
+#if ENABLE_INPUT_SYSTEM
             if (!m_FocusActionsSetUp)
             {
 #if UNITY_EDITOR
@@ -48,6 +49,7 @@ namespace StarterAssets
 
                 m_FocusActionsSetUp = true;
             }
+#endif
         }
 
         private void OnDestroy()
