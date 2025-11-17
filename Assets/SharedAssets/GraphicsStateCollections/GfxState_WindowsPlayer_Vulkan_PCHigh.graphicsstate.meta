@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d0518c166df044445a5d2622d8f10c9c
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 12391, guid: 0000000000000000e000000000000000, type: 0}
+  runtimePlatform: 2
+  graphicsDeviceType: 21
+  version: 0
+  qualityLevelName: PC High
+  shaderVariantCount: 538
+  graphicsStateCount: 523
