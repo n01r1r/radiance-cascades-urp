@@ -317,12 +317,57 @@ MonoBehaviour:
   active: 1
   RenderingType:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 1
   RayScale:
     m_OverrideState: 1
     m_Value: 0.1
   UseSH:
     m_OverrideState: 1
+    m_Value: 0
+  HighPrecisionRadiance:
+    m_OverrideState: 0
+    m_Value: 1
+  EnableProfiling:
+    m_OverrideState: 0
+    m_Value: 0
+  EnableAdaptiveRayScale:
+    m_OverrideState: 1
+    m_Value: 1
+  CascadeScaleFactor:
+    m_OverrideState: 1
+    m_Value: 1.5
+  VarianceInfluence:
+    m_OverrideState: 1
+    m_Value: 0.3
+  OffScreenFallbackMode:
+    m_OverrideState: 0
+    m_Value: 0
+  EnvironmentCubeMap:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
+  EnvironmentIntensity:
+    m_OverrideState: 0
+    m_Value: 1
+  EnvironmentFallbackWeight:
+    m_OverrideState: 0
+    m_Value: 0.3
+  EnableAdaptiveSamplingDensity:
+    m_OverrideState: 1
+    m_Value: 1
+  MinRaySteps:
+    m_OverrideState: 1
+    m_Value: 4
+  MaxRaySteps:
+    m_OverrideState: 1
+    m_Value: 32
+  VarianceSamplingInfluence:
+    m_OverrideState: 1
+    m_Value: 0.5
+  DebugSlice:
+    m_OverrideState: 0
+    m_Value: 0.5
+  ShowMemoryUsage:
+    m_OverrideState: 0
     m_Value: 0
 --- !u!114 &-3674277848186640007
 MonoBehaviour:
