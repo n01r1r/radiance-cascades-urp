@@ -2,7 +2,7 @@
   "name": "com.alexmalyutindev.radiance-cascades-urp",
   "displayName": "Radiance Cascades URP",
   "version": "0.0.1",
-  "description": "TODO:",
+  "description": "Screen-space implementation of Radiance Cascades for Unity URP, providing real-time screen-space global illumination with performance optimizations.",
   "unity": "2022.3",
   "dependencies": {
     "com.unity.render-pipelines.universal": "14.0.10"
