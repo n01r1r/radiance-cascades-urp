@@ -79,7 +79,7 @@ Radiance Cascades was originally developed by **Alexander Sannikov** (Grinding G
 ## References
 
 - [Radiance Cascades Paper](https://arxiv.org/abs/2408.14425)
-- [Original Repository](https://github.com/Youssef-Afella/RadianceCascadesUnity) - Base implementation by Youssef Afella
+- [Original Repository](https://github.com/alexmalyutindev/unity-urp-radiance-cascades) - Base implementation by Youssef Afella
 - [Alexander Sannikov's YouTube Channel](https://www.youtube.com/@Alexander_Sannikov/videos) - Original technique creator
 - [Radiance Cascades Technical Deep Dive](https://techartnomad.tistory.com/651) - In-depth technical analysis (Korean) - Thanks for mentioning this repository!
 
